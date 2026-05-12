@@ -2,6 +2,8 @@
  * use-video-bridge.ts
  * 从 <video> 元素定时截取帧，通过 postMessage 发送给父窗口（Figma 插件）
  * 用于 Figma 嵌入模式下提取纯视频画面
+ * 
+ * 性能优化版：减少内存分配 + 降低无谓计算
  */
 
 import { ref, type Ref } from 'vue'
@@ -27,6 +29,10 @@ export function useVideoBridge(videoElement: Ref<HTMLVideoElement | null>, optio
   const interval = 1000 / targetFps
   let isRunning = false
 
+  // 缓存上一次 canvas 尺寸，避免重复分配
+  let lastCanvasWidth = 0
+  let lastCanvasHeight = 0
+
   function startBridge() {
     if (isRunning) return
     isRunning = true
@@ -36,7 +42,8 @@ export function useVideoBridge(videoElement: Ref<HTMLVideoElement | null>, optio
 
       const video = videoElement.value
       if (!video || !video.srcObject || video.videoWidth === 0) {
-        animId = requestAnimationFrame(capture)
+        // 视频未就绪时用 setTimeout 重试（不用 rAF 浪费资源）
+        animId = setTimeout(capture, 100)
         return
       }
 
@@ -45,23 +52,41 @@ export function useVideoBridge(videoElement: Ref<HTMLVideoElement | null>, optio
 
       // 降采样
       const scale = maxWidth > 0 ? Math.min(1, maxWidth / vw) : 1
-      captureCanvas.width = Math.round(vw * scale)
-      captureCanvas.height = Math.round(vh * scale)
+      const w = Math.round(vw * scale)
+      const h = Math.round(vh * scale)
 
-      ctx.drawImage(video, 0, 0, captureCanvas.width, captureCanvas.height)
+      // ✅ 只在尺寸变化时才重设 canvas（避免重复分配 GPU 缓冲区）
+      if (w !== lastCanvasWidth || h !== lastCanvasHeight) {
+        captureCanvas.width = w
+        captureCanvas.height = h
+        lastCanvasWidth = w
+        lastCanvasHeight = h
+      }
+
+      ctx.drawImage(video, 0, 0, w, h)
 
       const now = performance.now()
       if (now - lastPostTime >= interval) {
         try {
-          const jpeg = captureCanvas.toDataURL('image/jpeg', quality)
-          window.parent.postMessage({ type: 'video-frame', frame: jpeg }, '*')
+          // ✅ 用 toBlob 替代 toDataURL（更省内存，异步非阻塞）
+          captureCanvas.toBlob((blob) => {
+            if (!blob || !isRunning) return
+            // ✅ 用 ObjectURL 替代 base64 字符串（内存更小）
+            const url = URL.createObjectURL(blob)
+            window.parent.postMessage({ type: 'video-frame', frame: url }, '*')
+            // ✅ 5秒后释放 ObjectURL（给接收方足够的加载时间）
+            setTimeout(() => {
+              if (url.startsWith('blob:')) URL.revokeObjectURL(url)
+            }, 5000)
+          }, 'image/jpeg', quality)
           lastPostTime = now
         } catch (e) {
           console.warn('[VideoBridge] 截帧失败:', e)
         }
       }
 
-      animId = requestAnimationFrame(capture)
+      // ✅ 用 setTimeout 替代 requestAnimationFrame（按需调度，而非 60fps 空转）
+      animId = setTimeout(capture, Math.floor(1000 / targetFps))
     }
 
     capture()
@@ -70,7 +95,7 @@ export function useVideoBridge(videoElement: Ref<HTMLVideoElement | null>, optio
 
   function stopBridge() {
     isRunning = false
-    cancelAnimationFrame(animId)
+    clearTimeout(animId)
     console.log('[VideoBridge] 已停止')
   }
 
