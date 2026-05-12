@@ -1,7 +1,7 @@
 <template>
   <v-app class="app-root">
     <v-app-bar
-      v-if="!isDeviceMode"
+      v-if="!isDeviceMode && !isFigmaEmbed"
       flat
       height="48"
       color="surface"
@@ -29,7 +29,7 @@
       </template>
     </DeviceView>
 
-    <RemoteView v-else :initial-peer-id="initialPeerId" />
+    <RemoteView v-else :initial-peer-id="initialPeerId" :is-figma-embed="isFigmaEmbed" />
   </v-app>
 </template>
 
@@ -47,10 +47,13 @@ const currentUser = ref({
 
 const isDeviceMode = ref(true);
 const initialPeerId = ref('');
+const isFigmaEmbed = ref(false);
 
 onMounted(() => {
   const urlParams = new URLSearchParams(window.location.search);
   const remotePeerId = urlParams.get('remote');
+  // 检测是否在 Figma 插件 iframe 中运行
+  isFigmaEmbed.value = urlParams.has('figma') || window.parent !== window;
   if (remotePeerId) {
     initialPeerId.value = remotePeerId;
     isDeviceMode.value = false;

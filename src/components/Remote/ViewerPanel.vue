@@ -34,7 +34,7 @@
     </div>
 
     <div v-else class="video-area">
-      <div class="status-bar">
+      <div v-if="!isFigmaEmbed" class="status-bar">
         <span class="status-chip">
           <span class="status-dot" />
           已连接
@@ -66,7 +66,7 @@
         />
       </div>
 
-      <div class="nav-bar">
+      <div v-if="!isFigmaEmbed" class="nav-bar">
         <button class="nav-btn" @click="touchController.sendBackKey">
           <v-icon size="20">mdi-arrow-left</v-icon>
         </button>
@@ -93,12 +93,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue';
+import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useScreenViewer } from '@/composables/use-screen-viewer';
 import { useTouchController } from '@/composables/use-touch-controller';
+import { useVideoBridge } from '@/composables/use-video-bridge';
 
 const props = defineProps<{
   initialPeerId?: string;
+  isFigmaEmbed?: boolean;
 }>();
 
 const hostPeerId = ref('');
@@ -119,6 +121,13 @@ const {
 
 const touchController = useTouchController(sendCommand, videoElement);
 
+// Figma 嵌入模式：视频帧桥接
+const { startBridge, stopBridge } = useVideoBridge(videoElement, {
+  targetFps: 8,
+  quality: 0.6,
+  maxWidth: 480,
+});
+
 onMounted(() => {
   if (props.initialPeerId) {
     hostPeerId.value = props.initialPeerId;
@@ -136,6 +145,19 @@ watch(connectionState, (newState, oldState) => {
   if (oldState === 'connected' && newState === 'disconnected') {
     showDisconnected.value = true;
   }
+});
+
+// Figma 嵌入模式：有连接时启动桥接，断开时停止
+watch([remoteStream, () => props.isFigmaEmbed], ([stream, embed]) => {
+  if (embed && stream) {
+    startBridge();
+  } else {
+    stopBridge();
+  }
+});
+
+onUnmounted(() => {
+  stopBridge();
 });
 
 function bindStreamToVideo() {

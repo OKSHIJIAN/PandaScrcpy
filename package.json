@@ -9,7 +9,8 @@
     "build-only": "vite build",
     "type-check": "vue-tsc --noEmit",
     "lint": "eslint . --ext .vue,.js,.jsx,.cjs,.mjs,.ts,.tsx,.cts,.mts --fix --ignore-path .gitignore",
-    "postinstall": "fetch-scrcpy-server 3.3.3"
+    "postinstall": "fetch-scrcpy-server 3.3.3",
+    "build:figma": "vite build --config vite.figma.config.ts && node scripts/copy-figma-plugin.js"
   },
   "dependencies": {
     "@mdi/font": "^7.4.47",

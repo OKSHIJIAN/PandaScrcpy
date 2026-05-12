@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <title>PandaScrcpy</title>
+
+  <style>
+    /* 加载中占位样式 */
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body, #app { height: 100%; overflow: hidden; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
+      background: #0a0e14;
+      color: #e0e0e0;
+    }
+    #loading-hint {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      height: 100%;
+      font-size: 14px;
+      color: #00ffc8;
+    }
+  </style>
+</head>
+<body>
+  <div id="app"><div id="loading-hint">⏳ Loading PandaScrcpy...</div></div>
+  <!-- Figma 沙箱 API stub — 在主应用之前注入 -->
+  <script>
+    // === Figma Environment Compatibility Layer ===
+    // Figma 插件 iframe 不支持以下 API，提供 mock 防止崩溃
+    
+    // WebRTC mock — PeerJS 依赖此 API
+    if (typeof RTCPeerConnection === 'undefined') {
+      window.RTCPeerConnection = function() {
+        this.localDescription = null;
+        this.remoteDescription = null;
+        this.iceConnectionState = 'failed';
+        this.signalingState = 'stable';
+        this.onicecandidate = null;
+        this.ontrack = null;
+        this.ondatachannel = null;
+        this.onconnectionstatechange = null;
+        this.close = function() {};
+        this.createOffer = async () => ({ type: 'offer', sdp: '' });
+        this.createAnswer = async () => ({ type: 'answer', sdp: '' });
+        this.setLocalDescription = async () => {};
+        this.setRemoteDescription = async () => {};
+        this.addIceCandidate = async () => {};
+        this.getTransceivers = () => [];
+        this.getSenders = () => [];
+        this.getReceivers = () => [];
+        this.addTrack = () => ({});
+        this.removeTrack = () => {};
+        this.createDataChannel = () => ({
+          send: function() {},
+          close: function() {},
+          binaryType: 'arraybuffer',
+          onmessage: null,
+          onopen: null,
+          onclose: null,
+          bufferedAmount: 0,
+          readyState: 'closed'
+        });
+      };
+      window.RTCSessionDescription = function(desc) { return desc || {}; };
+      window.RTCIceCandidate = function(candidate) { return candidate || {}; };
+    }
+
+    // WebSocket mock（如果 Figma 限制 WebSocket）
+    // 通常 Figma 允许 ws:// 连接，这里只做防御性处理
+    
+    // USB mock（WebUSB API）
+    if (typeof navigator !== 'undefined' && !navigator.usb) {
+      navigator.usb = {
+        getDevices: async () => [],
+        requestDevice: async () => { throw new Error('WebUSB not available in Figma'); },
+        addEventListener: function() {}
+      };
+    }
+
+    // Serial mock（Web Serial API）— adb 连接可能用到
+    if (typeof navigator !== 'undefined' && !navigator.serial) {
+      navigator.serial = {
+        getPorts: async () => [],
+        requestPort: async () => { throw new Error('WebSerial not available in Figma'); },
+        addEventListener: function() {}
+      };
+    }
+
+    console.log('[PandaScrcpy] Figma compatibility layer loaded ✓');
+  </script>
+  <!-- 主应用 IIFE bundle -->
+  <script src="./index.js"></script>
+</body>
+</html>
