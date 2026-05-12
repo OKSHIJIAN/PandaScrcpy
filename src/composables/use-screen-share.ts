@@ -11,6 +11,11 @@ import { PEER_CONFIG, generateShareId } from '@/services/peer-config';
 import { deserializeCommand, isTouchCommand, isKeyCommand } from '@/services/command-types';
 import { normalizedToDevice } from '@/services/coord-utils';
 import scrcpyState from '@/components/Scrcpy/scrcpy-state';
+import {
+    AndroidMotionEventAction,
+    AndroidMotionEventButton,
+    ScrcpyPointerId,
+} from '@yume-chan/scrcpy';
 
 export type ConnectionState = 'idle' | 'initializing' | 'ready' | 'error';
 
@@ -50,6 +55,7 @@ export function useScreenShare(): UseScreenShareReturn {
    * 处理来自观看者的控制命令
    */
   function handleCommand(data: unknown): void {
+    console.log('[Host] 收到原始数据:', data);
     const command = typeof data === 'string' ? deserializeCommand(data) : data as any;
     if (!command) {
       console.warn('[Host] 收到无效的控制命令:', data);
@@ -57,8 +63,16 @@ export function useScreenShare(): UseScreenShareReturn {
     }
 
     console.log('[Host] 收到控制命令:', command);
+    console.log('[Host] scrcpyState.scrcpy:', !!scrcpyState.scrcpy, 'controller:', !!scrcpyState.scrcpy?.controller);
+    console.log('[Host] scrcpyState.keyboard:', !!scrcpyState.keyboard);
 
     if (isTouchCommand(command)) {
+      // 检查 scrcpy 是否正在运行
+      if (!scrcpyState.running || !scrcpyState.width || !scrcpyState.height) {
+        console.warn('[Host] Scrcpy 未运行或尺寸未知，跳过触摸注入');
+        return;
+      }
+
       const deviceCoords = normalizedToDevice(
         command.x,
         command.y,
@@ -67,25 +81,33 @@ export function useScreenShare(): UseScreenShareReturn {
         scrcpyState.rotation
       );
 
+      console.log('[Host] 设备坐标:', deviceCoords);
+
       const controller = scrcpyState.scrcpy?.controller;
       if (controller) {
-        const actionMap: Record<string, number> = {
-          'down': 0,
-          'move': 2,
-          'up': 1,
+        // 远程触摸统一使用 ScrcpyPointerId.Finger
+        const pointerId: bigint = ScrcpyPointerId.Finger;
+
+        const actionMap: Record<string, AndroidMotionEventAction> = {
+          'down': AndroidMotionEventAction.Down,
+          'move': AndroidMotionEventAction.Move,
+          'up': AndroidMotionEventAction.Up,
         };
-        
+
+        console.log('[Host] 注入触摸:', command.action);
         controller.injectTouch({
-            action: actionMap[command.action] as any,
-            pointerId: BigInt(command.pointerId),
+            action: actionMap[command.action],
+            pointerId,
+            videoWidth: scrcpyState.width,
+            videoHeight: scrcpyState.height,
             pointerX: deviceCoords.x,
             pointerY: deviceCoords.y,
             pressure: command.action === 'up' ? 0 : 1,
-            actionButton: 0,
+            actionButton: AndroidMotionEventButton.Primary,
             buttons: command.action === 'up' ? 0 : 1,
-            videoWidth: 0,
-            videoHeight: 0
         });
+      } else {
+        console.warn('[Host] controller 不存在，无法注入触摸！');
       }
     } else if (isKeyCommand(command)) {
       const keyMap: Record<string, string> = {
@@ -95,11 +117,14 @@ export function useScreenShare(): UseScreenShareReturn {
       };
       
       const keyName = keyMap[command.key];
+      console.log('[Host] 按键:', command.key, '->', keyName);
       if (keyName && scrcpyState.keyboard) {
         scrcpyState.keyboard.down(keyName);
         setTimeout(() => {
           scrcpyState.keyboard?.up(keyName);
         }, 50);
+      } else {
+        console.warn('[Host] keyboard 不存在，无法注入按键！');
       }
     }
   }

@@ -53,17 +53,21 @@
       </div>
 
       <div class="video-wrapper" ref="videoWrapper">
-        <video
-          ref="videoElement"
-          autoplay
-          playsinline
-          muted
-          class="remote-video"
+        <div
+          class="touch-overlay"
           @pointerdown="touchController.onPointerDown"
           @pointermove="touchController.onPointerMove"
           @pointerup="touchController.onPointerUp"
           @pointercancel="touchController.onPointerCancel"
-        />
+        >
+          <video
+            ref="videoElement"
+            autoplay
+            playsinline
+            muted
+            class="remote-video"
+          />
+        </div>
       </div>
 
       <div v-if="!isFigmaEmbed" class="nav-bar">
@@ -272,6 +276,16 @@ function handleDisconnect() {
   align-items: center;
   background: #18181b;
   overflow: hidden;
+  touch-action: none;
+}
+
+.touch-overlay {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
   touch-action: none;
 }
 

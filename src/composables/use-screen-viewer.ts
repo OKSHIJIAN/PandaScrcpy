@@ -53,15 +53,15 @@ export function useScreenViewer(): UseScreenViewerReturn {
     return new Promise((resolve, reject) => {
       peer = new Peer(PEER_CONFIG);
 
-      // 30 秒超时
+      // 15 秒超时
       timeout = setTimeout(() => {
         if (peer && !peer.destroyed) {
           peer.destroy();
         }
         connectionState.value = 'error';
-        error.value = '连接超时，请检查分享码是否正确';
+        error.value = '连接超时，请确认：1) 分享端已开启分享；2) 分享码输入正确';
         reject(new Error('连接超时'));
-      }, 30000);
+      }, 15000);
 
       // ========== 信令事件 1: 本地 Peer 连接成功 ==========
       peer.on('open', (id) => {
@@ -205,11 +205,13 @@ export function useScreenViewer(): UseScreenViewerReturn {
    * 发送触摸事件
    */
   function sendCommand(command: RemoteControlCommand): void {
+    console.log('[Viewer] sendCommand 调用', { command, dataConnOpen: dataConn?.open });
     if (!dataConn?.open) {
       console.warn('[Viewer] 数据通道未建立，无法发送命令');
       return;
     }
     dataConn.send(command);
+    console.log('[Viewer] 命令已发送:', JSON.stringify(command));
   }
 
   onUnmounted(() => {

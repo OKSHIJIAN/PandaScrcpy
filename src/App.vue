@@ -15,7 +15,7 @@
       </v-app-bar-title>
     </v-app-bar>
 
-    <DeviceView v-if="isDeviceMode" :room-name="roomName" :current-user="currentUser">
+    <DeviceView v-if="isDeviceMode">
       <template #remote-button>
         <v-btn
           variant="text"
@@ -39,11 +39,6 @@ import { VApp, VIcon, VBtn, VAppBar, VAppBarTitle } from 'vuetify/components';
 import DeviceView from './views/DeviceView.vue';
 import RemoteView from './views/RemoteView.vue';
 
-const roomName = ref('default-room');
-const currentUser = ref({
-  id: 'default-user',
-  name: 'Default User',
-});
 
 const isDeviceMode = ref(true);
 const initialPeerId = ref('');

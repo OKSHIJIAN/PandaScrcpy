@@ -63,7 +63,11 @@ export function useTouchController(
    * 处理 pointer down 事件
    */
   function onPointerDown(e: PointerEvent): void {
-    if (!videoElement.value) return;
+    console.log('[TouchController] pointerdown 触发', e.clientX, e.clientY);
+    if (!videoElement.value) {
+      console.warn('[TouchController] videoElement 不存在');
+      return;
+    }
 
     // 阻止默认行为（如文本选择）
     e.preventDefault();
@@ -73,6 +77,7 @@ export function useTouchController(
 
     // 计算归一化坐标
     const { x, y } = clientToNormalized(e.clientX, e.clientY, videoElement.value);
+    console.log('[TouchController] 发送 down 命令', { x, y, pointerId: e.pointerId });
 
     // 记录活跃的触摸点
     activePointers.value.set(e.pointerId, { x, y });
