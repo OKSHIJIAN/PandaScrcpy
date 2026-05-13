@@ -27,8 +27,8 @@ lerna-debug.log*
 coverage
 
 # 构建输出目录
-dist
-dist-ssr
+# dist
+# dist-ssr
 
 # 本地环境文件
 *.local
