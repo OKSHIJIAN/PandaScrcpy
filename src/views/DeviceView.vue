@@ -74,6 +74,10 @@ const onPairDevice = (device) => {
 const handleConnectionStatus = async (status) => {
   if (status) {
     await ensureContainerSize();
+    // 延迟等待视频流就绪后自动启动分享
+    setTimeout(() => {
+      shareButtonRef.value?.autoStart();
+    }, 2000);
   }
   connected.value = status;
   if (!status) {
@@ -205,6 +209,7 @@ const tabs = [
 ];
 
 const pairedDevicesRef = ref(null);
+const shareButtonRef = ref(null);
 
 const handleAddDevice = () => {
   pairedDevicesRef.value?.handleAddDevice();
@@ -248,7 +253,7 @@ function toggleFullscreen() {
           @update-connection-status="handleConnectionStatus"
         />
       </div>
-      <ShareButton v-if="connected" class="ml-1 flex-shrink-0" />
+      <ShareButton v-if="connected" ref="shareButtonRef" class="ml-1 flex-shrink-0" />
       <v-btn
         v-if="connected"
         icon

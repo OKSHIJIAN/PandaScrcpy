@@ -1,19 +1,15 @@
 <template>
   <div class="share-root">
-    <v-btn
-      v-if="!isSharing"
-      variant="text"
-      size="small"
-      color="secondary"
-      class="text-none"
-      :loading="connectionState === 'initializing'"
-      @click="handleStartShare"
-    >
-      <v-icon start size="16">mdi-share-variant-outline</v-icon>
-      分享
-    </v-btn>
+    <!-- 初始化中状态 -->
+    <div v-if="!isSharing && connectionState === 'initializing'" class="sharing-row">
+      <button class="share-chip chip-loading">
+        <v-progress-circular indeterminate size="12" width="2" color="success" />
+        <span class="share-label">正在启动分享...</span>
+      </button>
+    </div>
 
-    <div v-else class="sharing-row">
+    <!-- 分享中状态 -->
+    <div v-else-if="isSharing" class="sharing-row">
       <button class="share-chip" @click="showShareDialog = true">
         <span class="share-dot" />
         <span class="share-label">分享中</span>
@@ -130,18 +126,22 @@ watch(isSharing, (sharing) => {
   if (sharing && peerId.value) showShareDialog.value = true;
 });
 
-async function handleStartShare() {
+// 自动启动分享方法，供 DeviceView 调用
+async function autoStart() {
   const canvas = scrcpyState.getCanvas();
   if (!canvas) {
-    showError.value = true;
+    console.warn('Canvas 未就绪，无法启动分享');
     return;
   }
   try {
     await startSharing(canvas as HTMLCanvasElement, 30);
   } catch (err) {
-    console.error('启动分享失败:', err);
+    console.error('自动启动分享失败:', err);
   }
 }
+
+// 暴露方法给父组件
+defineExpose({ autoStart });
 
 function handleStopShare() {
   showShareDialog.value = false;
@@ -194,6 +194,13 @@ async function copyPeerId() {
   color: #16a34a;
   cursor: pointer;
   transition: background 0.15s;
+}
+
+.share-chip.chip-loading {
+  cursor: default;
+  border-color: rgba(234, 179, 8, 0.3);
+  background: rgba(234, 179, 8, 0.06);
+  color: #ca8a04;
 }
 
 .share-chip:hover {
