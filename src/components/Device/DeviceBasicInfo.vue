@@ -128,13 +128,13 @@ const uptime = computed(() => {
   justify-content: space-between;
   padding: 10px 12px;
   border-bottom: 1px solid var(--border);
-  background: rgba(24, 24, 27, 0.02);
+  background: var(--bg-subtle);
 }
 
 .info-card-title {
   font-size: 13px;
   font-weight: 600;
-  color: rgba(24, 24, 27, 0.88);
+  color: var(--text-primary);
   letter-spacing: 0.02em;
 }
 
@@ -195,7 +195,7 @@ const uptime = computed(() => {
 
 .info-value {
   font-size: 12px;
-  color: rgba(24, 24, 27, 0.88);
+  color: var(--text-primary);
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;

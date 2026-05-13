@@ -235,7 +235,7 @@ defineExpose({ handleAddDevice, openMenu });
         >
             <template #activator="{ props }">
                 <button class="device-trigger" v-bind="props">
-                    <v-icon size="16" class="trigger-icon">mdi-cellphone-link</v-icon>
+                    <v-icon size="16" class="trigger-icon">mdi-link</v-icon>
                     <span class="trigger-label">
                         {{ selected ? (selected.name || selected.serial) : '选择设备' }}
                     </span>
@@ -337,7 +337,7 @@ defineExpose({ handleAddDevice, openMenu });
     cursor: pointer;
     font-size: 13px;
     font-weight: 500;
-    color: rgba(24, 24, 27, 0.8);
+    color: var(--text-primary);
     transition: border-color 0.15s, background 0.15s;
     outline: none;
     white-space: nowrap;
@@ -346,7 +346,7 @@ defineExpose({ handleAddDevice, openMenu });
 
 .device-trigger:hover {
     border-color: var(--border-hover);
-    background: rgba(24, 24, 27, 0.02);
+    background: var(--bg-subtle);
 }
 
 .trigger-icon {
@@ -371,7 +371,7 @@ defineExpose({ handleAddDevice, openMenu });
 }
 
 .trigger-dot--off {
-    background: rgba(24, 24, 27, 0.2);
+    background: var(--text-tertiary);
 }
 
 .trigger-chevron {
@@ -399,7 +399,7 @@ defineExpose({ handleAddDevice, openMenu });
 .dd-title {
     font-size: 13px;
     font-weight: 600;
-    color: rgba(24, 24, 27, 0.55);
+    color: var(--text-secondary);
     text-transform: uppercase;
     letter-spacing: 0.04em;
 }
@@ -420,12 +420,12 @@ defineExpose({ handleAddDevice, openMenu });
     border-radius: 8px;
     background: transparent;
     cursor: pointer;
-    color: rgba(24, 24, 27, 0.5);
+    color: var(--text-secondary);
     transition: background 0.15s;
 }
 
 .dd-icon-btn:hover {
-    background: rgba(24, 24, 27, 0.06);
+    background: var(--bg-hover);
 }
 
 .dd-section {
@@ -456,14 +456,14 @@ defineExpose({ handleAddDevice, openMenu });
 }
 
 .dd-item:hover {
-    background: rgba(24, 24, 27, 0.04);
+    background: var(--bg-hover);
 }
 
 .dd-item-icon {
     width: 36px;
     height: 36px;
     border-radius: 8px;
-    background: rgba(24, 24, 27, 0.04);
+    background: var(--key-bg);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -480,7 +480,7 @@ defineExpose({ handleAddDevice, openMenu });
 .dd-item-name {
     font-size: 13px;
     font-weight: 500;
-    color: rgba(24, 24, 27, 0.85);
+    color: var(--text-primary);
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -488,7 +488,7 @@ defineExpose({ handleAddDevice, openMenu });
 
 .dd-item-serial {
     font-size: 11px;
-    color: rgba(24, 24, 27, 0.4);
+    color: var(--text-tertiary);
 }
 
 .dd-footer {
@@ -504,13 +504,13 @@ defineExpose({ handleAddDevice, openMenu });
     background: transparent;
     font-size: 13px;
     font-weight: 500;
-    color: rgba(24, 24, 27, 0.6);
+    color: var(--text-secondary);
     cursor: pointer;
     transition: background 0.15s, border-color 0.15s;
 }
 
 .dd-close-btn:hover {
-    background: rgba(24, 24, 27, 0.03);
+    background: var(--bg-subtle);
     border-color: var(--border-hover);
 }
 </style>

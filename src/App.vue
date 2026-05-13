@@ -34,15 +34,22 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, computed } from 'vue';
+import { useTheme } from 'vuetify';
 import { VApp, VIcon, VBtn, VAppBar, VAppBarTitle } from 'vuetify/components';
 import DeviceView from './views/DeviceView.vue';
 import RemoteView from './views/RemoteView.vue';
 
-
+const theme = useTheme();
 const isDeviceMode = ref(true);
 const initialPeerId = ref('');
 const isFigmaEmbed = ref(false);
+
+const isDark = computed(() => theme.global.name.value === 'dark');
+
+function toggleTheme() {
+  theme.global.name.value = theme.global.current.value.dark ? 'light' : 'dark';
+}
 
 onMounted(() => {
   const urlParams = new URLSearchParams(window.location.search);
@@ -69,8 +76,41 @@ function goBackToDevice() {
   --border: rgba(24, 24, 27, 0.08);
   --border-hover: rgba(24, 24, 27, 0.16);
   --muted: rgba(24, 24, 27, 0.5);
+  --text-primary: rgba(24, 24, 27, 0.85);
+  --text-secondary: rgba(24, 24, 27, 0.65);
+  --text-tertiary: rgba(24, 24, 27, 0.4);
+  --text-hover: rgba(24, 24, 27, 0.85);
+  --scrollbar-thumb: rgba(24, 24, 27, 0.12);
+  --scrollbar-thumb-hover: rgba(24, 24, 27, 0.2);
+  --tab-hover-bg: rgba(24, 24, 27, 0.03);
+  --bg-hover: rgba(24, 24, 27, 0.04);
+  --bg-subtle: rgba(24, 24, 27, 0.02);
+  --key-bg: rgba(24, 24, 27, 0.02);
+  --key-text: rgba(24, 24, 27, 0.55);
+  --icon-opacity: 0.5;
+  --shadow: rgba(24, 24, 27, 0.12);
   --cta-bg: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
   --cta-hover: linear-gradient(135deg, #4f46e5 0%, #7c3aed 100%);
+}
+
+/* 深色模式变量 */
+.v-theme--dark {
+  --border: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.16);
+  --muted: rgba(255, 255, 255, 0.5);
+  --text-primary: rgba(255, 255, 255, 0.85);
+  --text-secondary: rgba(255, 255, 255, 0.65);
+  --text-tertiary: rgba(255, 255, 255, 0.4);
+  --text-hover: rgba(255, 255, 255, 0.85);
+  --scrollbar-thumb: rgba(255, 255, 255, 0.12);
+  --scrollbar-thumb-hover: rgba(255, 255, 255, 0.2);
+  --tab-hover-bg: rgba(255, 255, 255, 0.03);
+  --bg-hover: rgba(255, 255, 255, 0.04);
+  --bg-subtle: rgba(255, 255, 255, 0.02);
+  --key-bg: rgba(255, 255, 255, 0.06);
+  --key-text: rgba(255, 255, 255, 0.55);
+  --icon-opacity: 0.6;
+  --shadow: rgba(0, 0, 0, 0.3);
 }
 
 html,
@@ -99,10 +139,10 @@ body {
   background: transparent;
 }
 *::-webkit-scrollbar-thumb {
-  background: rgba(24, 24, 27, 0.12);
+  background: var(--scrollbar-thumb);
   border-radius: 3px;
 }
 *::-webkit-scrollbar-thumb:hover {
-  background: rgba(24, 24, 27, 0.2);
+  background: var(--scrollbar-thumb-hover);
 }
 </style>

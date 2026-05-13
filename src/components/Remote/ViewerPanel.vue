@@ -222,7 +222,7 @@ function handleDisconnect() {
   padding: 16px 16px 0;
   font-size: 15px;
   font-weight: 600;
-  color: rgba(24, 24, 27, 0.85);
+  color: var(--text-primary);
 }
 
 .cc-title {
@@ -312,12 +312,12 @@ function handleDisconnect() {
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: rgba(24, 24, 27, 0.6);
+  color: var(--text-secondary);
   cursor: pointer;
   transition: background 0.15s;
 }
 
 .nav-btn:hover {
-  background: rgba(24, 24, 27, 0.06);
+  background: var(--bg-hover);
 }
 </style>

@@ -366,7 +366,7 @@ provide('setVideoContainerFocus', (focused: boolean) => {
     width: 100%;
     height: 100%;
     min-height: 0;
-    background-color: rgba(24, 24, 27, 0.04);
+    background-color: var(--key-bg);
     cursor: crosshair;
     overflow: hidden;
     outline: none;

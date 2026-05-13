@@ -1,6 +1,6 @@
 <script setup>
 import { ref, computed, onMounted, onUnmounted, shallowRef, watch } from "vue";
-import { useDisplay } from "vuetify";
+import { useDisplay, useTheme } from "vuetify";
 import PairedDevices from "../components/Device/PairedDevices.vue";
 import logo from "../assets/logo.svg";
 import DeviceShell from "../components/Device/DeviceShell.vue";
@@ -12,6 +12,13 @@ import NavigationBar from "../components/Device/NavigationBar.vue";
 import state from "../components/Scrcpy/scrcpy-state";
 import AppManager from "../components/Device/AppManager.vue";
 import ShareButton from '../components/Remote/ShareButton.vue'
+
+const theme = useTheme();
+const isDark = computed(() => theme.global.name.value === 'dark');
+
+function toggleTheme() {
+  theme.global.name.value = theme.global.current.value.dark ? 'light' : 'dark';
+}
 
 const { width } = useDisplay();
 /** 宽屏下是否具备显示右侧栏的条件 */
@@ -219,7 +226,7 @@ const handleAddDevice = () => {
         max-height="22"
         class="flex-shrink-0"
       />
-      <span class="brand-name">PANDASCRCPY</span>
+      <span class="brand-name">熊猫投屏</span>
       <div class="bar-devices">
         <PairedDevices
           ref="pairedDevicesRef"
@@ -243,6 +250,17 @@ const handleAddDevice = () => {
         <v-icon size="20">
           {{ rightPanelCollapsed ? 'mdi-chevron-double-left' : 'mdi-chevron-double-right' }}
         </v-icon>
+      </v-btn>
+      <v-btn
+        icon
+        variant="text"
+        size="small"
+        color="secondary"
+        class="flex-shrink-0"
+        :title="isDark ? '切换到浅色模式' : '切换到深色模式'"
+        @click="toggleTheme"
+      >
+        <v-icon size="20">{{ isDark ? 'mdi-weather-sunny' : 'mdi-weather-night' }}</v-icon>
       </v-btn>
       <v-btn
         icon
@@ -316,7 +334,7 @@ const handleAddDevice = () => {
                     class="power-btn"
                     @click="handleAddDevice"
                   >
-                    <v-icon size="28">mdi-power</v-icon>
+                    <v-icon size="28">mdi-link</v-icon>
                   </v-btn>
                 </div>
                 <p class="empty-state-title">
@@ -392,7 +410,7 @@ const handleAddDevice = () => {
   font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: rgba(24, 24, 27, 0.85);
+  color: var(--text-primary);
   white-space: nowrap;
   user-select: none;
 }
@@ -508,8 +526,8 @@ const handleAddDevice = () => {
   white-space: nowrap;
 
   &:hover {
-    color: rgba(24, 24, 27, 0.85);
-    background: rgba(24, 24, 27, 0.03);
+    color: var(--text-hover);
+    background: var(--tab-hover-bg);
   }
 
   &.active {
@@ -579,7 +597,7 @@ const handleAddDevice = () => {
   &:hover::before,
   &:active::before {
     width: 2px;
-    background-color: rgba(24, 24, 27, 0.22);
+    background-color: var(--border-hover);
   }
 }
 
@@ -611,14 +629,14 @@ const handleAddDevice = () => {
   transition: box-shadow 0.2s ease;
 
   &:hover {
-    box-shadow: 0 4px 16px rgba(24, 24, 27, 0.12);
+    box-shadow: 0 4px 16px var(--shadow);
   }
 }
 
 .empty-state-title {
   font-size: 16px;
   font-weight: 600;
-  color: rgba(24, 24, 27, 0.85);
+  color: var(--text-primary);
   margin: 0;
 }
 

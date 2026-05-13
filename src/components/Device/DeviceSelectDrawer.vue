@@ -73,7 +73,7 @@ const drawer = computed({
 .drawer-title {
   font-size: 14px;
   font-weight: 600;
-  color: rgba(24, 24, 27, 0.85);
+  color: var(--text-primary);
 }
 
 .drawer-close {
@@ -85,12 +85,12 @@ const drawer = computed({
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: rgba(24, 24, 27, 0.4);
+  color: var(--text-tertiary);
   cursor: pointer;
 }
 
 .drawer-close:hover {
-  background: rgba(24, 24, 27, 0.06);
+  background: var(--bg-hover);
 }
 
 .drawer-empty {

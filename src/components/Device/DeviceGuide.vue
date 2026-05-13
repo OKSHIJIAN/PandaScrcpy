@@ -81,12 +81,12 @@ const faqItems = [
     border-radius: 8px;
     background: transparent;
     cursor: pointer;
-    color: rgba(24, 24, 27, 0.5);
+    color: var(--text-secondary);
     transition: background 0.15s;
 }
 
 .dd-icon-btn:hover {
-    background: rgba(24, 24, 27, 0.06);
+    background: var(--bg-hover);
 }
 
 .guide-dialog {
@@ -105,7 +105,7 @@ const faqItems = [
 .gd-title {
     font-size: 15px;
     font-weight: 600;
-    color: rgba(24, 24, 27, 0.85);
+    color: var(--text-primary);
 }
 
 .gd-close {
@@ -117,12 +117,12 @@ const faqItems = [
     border: none;
     border-radius: 8px;
     background: transparent;
-    color: rgba(24, 24, 27, 0.4);
+    color: var(--text-tertiary);
     cursor: pointer;
 }
 
 .gd-close:hover {
-    background: rgba(24, 24, 27, 0.06);
+    background: var(--bg-hover);
 }
 
 .gd-body {
@@ -133,7 +133,7 @@ const faqItems = [
     font-size: 11px;
     font-weight: 600;
     text-transform: uppercase;
-    color: rgba(24, 24, 27, 0.4);
+    color: var(--text-tertiary);
     letter-spacing: 0.04em;
     margin: 0 0 10px;
 }
@@ -149,12 +149,12 @@ const faqItems = [
 
 .gd-step {
     font-size: 13px;
-    color: rgba(24, 24, 27, 0.7);
+    color: var(--text-secondary);
     line-height: 1.5;
 }
 
 .gd-step strong {
-    color: rgba(24, 24, 27, 0.85);
+    color: var(--text-primary);
     font-weight: 600;
     margin-right: 4px;
 }
@@ -169,13 +169,13 @@ const faqItems = [
     padding: 10px 14px;
     font-size: 13px;
     font-weight: 500;
-    color: rgba(24, 24, 27, 0.7);
+    color: var(--text-secondary);
     cursor: pointer;
     user-select: none;
 }
 
 .gd-faq-toggle:hover {
-    background: rgba(24, 24, 27, 0.02);
+    background: var(--bg-subtle);
 }
 
 .gd-faq-list {
@@ -188,12 +188,12 @@ const faqItems = [
 .gd-faq-item {
     font-size: 13px;
     line-height: 1.5;
-    color: rgba(24, 24, 27, 0.6);
+    color: var(--text-secondary);
 }
 
 .gd-faq-item strong {
     display: block;
-    color: rgba(24, 24, 27, 0.8);
+    color: var(--text-primary);
     font-weight: 500;
     margin-bottom: 2px;
 }

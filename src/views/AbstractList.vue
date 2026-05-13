@@ -67,7 +67,7 @@ const commands = [
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: rgba(24, 24, 27, 0.4);
+  color: var(--text-tertiary);
   margin: 0 0 16px;
 }
 
@@ -93,7 +93,7 @@ const commands = [
 
 .shortcut-text {
   font-size: 13px;
-  color: rgba(24, 24, 27, 0.65);
+  color: var(--text-secondary);
 }
 
 .shortcut-keys {
@@ -111,9 +111,9 @@ const commands = [
   font-size: 11px;
   font-weight: 500;
   font-family: inherit;
-  color: rgba(24, 24, 27, 0.55);
+  color: var(--key-text);
   border: 1px solid var(--border);
-  background: rgba(24, 24, 27, 0.02);
+  background: var(--key-bg);
   border-radius: 6px;
 }
 

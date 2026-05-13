@@ -250,7 +250,7 @@ async function copyPeerId() {
 .sd-title {
   font-size: 15px;
   font-weight: 600;
-  color: rgba(24, 24, 27, 0.85);
+  color: var(--text-primary);
 }
 
 .sd-close {
@@ -262,12 +262,12 @@ async function copyPeerId() {
   border: none;
   border-radius: 8px;
   background: transparent;
-  color: rgba(24, 24, 27, 0.4);
+  color: var(--text-tertiary);
   cursor: pointer;
 }
 
 .sd-close:hover {
-  background: rgba(24, 24, 27, 0.06);
+  background: var(--bg-hover);
 }
 
 .sd-body {

@@ -83,9 +83,9 @@ const formattedBatteryCurrent = computed(() => {
 
 <style scoped>
 .battery-card {
-  background: white;
+  background: rgb(var(--v-theme-surface));
   border-radius: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--border);
   min-width: 280px;
 }
 
@@ -104,7 +104,7 @@ const formattedBatteryCurrent = computed(() => {
   left: 0;
   width: 100%;
   height: 100%;
-  background: rgba(0, 0, 0, 0.05);
+  background: var(--key-bg);
 }
 
 .battery-level {
@@ -121,11 +121,10 @@ const formattedBatteryCurrent = computed(() => {
   top: 50%;
   left: 50%;
   transform: translate(-50%, -50%);
-  color: white;
+  color: var(--text-primary);
   font-size: 18px;
   font-weight: 500;
   z-index: 2;
-  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
 .field-item {
@@ -135,11 +134,11 @@ const formattedBatteryCurrent = computed(() => {
 
 .field-item-label {
   font-weight: 500;
-  color: var(--v-text-primary);
+  color: var(--text-secondary);
   margin-right: .5em;
 }
 
 .field-item-value {
-  color: var(--v-text-secondary);
+  color: var(--text-primary);
 }
 </style>

@@ -86,9 +86,9 @@ const memoryUsage = computed(() => {
 
 <style scoped>
 .storage-card {
-  background: white;
+  background: rgb(var(--v-theme-surface));
   border-radius: 8px;
-  border: 1px solid rgba(0, 0, 0, 0.12);
+  border: 1px solid var(--border);
   min-width: 280px;
 }
 
@@ -119,15 +119,10 @@ const memoryUsage = computed(() => {
 .storage-percent {
   font-size: 24px;
   font-weight: 500;
-  color: var(--v-text-primary);
+  color: var(--text-primary);
 }
 
 .storage-progress {
   position: absolute;
-}
-
-/* 适配暗色主题 */
-:deep(.v-theme--dark) .storage-card {
-  background-color: var(--v-surface-variant-dark);
 }
 </style>

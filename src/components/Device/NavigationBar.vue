@@ -358,18 +358,18 @@ const buttons = computed((): ToolbarButton[] => [
     border: none;
     background: transparent;
     cursor: pointer;
-    color: rgba(24, 24, 27, 0.7);
+    color: var(--text-secondary);
     transition: background 0.15s ease, color 0.15s ease;
     outline: none;
     padding: 0;
 }
 
 .tb-btn:hover {
-    background: rgba(24, 24, 27, 0.06);
+    background: var(--bg-hover);
 }
 
 .tb-btn:active {
-    background: rgba(24, 24, 27, 0.1);
+    background: var(--key-bg);
 }
 
 .tb-btn--active {

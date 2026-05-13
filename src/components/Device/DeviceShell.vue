@@ -161,7 +161,7 @@ function clearTerminal() {
 .shell-title {
     font-size: 13px;
     font-weight: 600;
-    color: rgba(24, 24, 27, 0.85);
+    color: var(--text-primary);
 }
 
 .shell-actions {
