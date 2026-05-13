@@ -1,7 +1,7 @@
 <template>
   <v-app class="app-root">
     <v-app-bar
-      v-if="!isDeviceMode && !isFigmaEmbed"
+      v-if="!isDeviceMode && !isFigmaEmbed && !isStandalone"
       flat
       height="48"
       color="surface"
@@ -44,6 +44,7 @@ const theme = useTheme();
 const isDeviceMode = ref(true);
 const initialPeerId = ref('');
 const isFigmaEmbed = ref(false);
+const isStandalone = ref(false);
 
 const isDark = computed(() => theme.global.name.value === 'dark');
 
@@ -56,9 +57,13 @@ onMounted(() => {
   const remotePeerId = urlParams.get('remote');
   // 检测是否在 Figma 插件 iframe 中运行
   isFigmaEmbed.value = urlParams.has('figma') || window.parent !== window;
+  // 检测是否独立模式（纯净界面，无顶部栏）
+  isStandalone.value = urlParams.has('standalone') || urlParams.has('clean');
   if (remotePeerId) {
     initialPeerId.value = remotePeerId;
     isDeviceMode.value = false;
+    // 通过分享链接进入时也隐藏顶部栏
+    isStandalone.value = true;
   }
 });
 
@@ -122,9 +127,31 @@ body,
 body {
   margin: 0;
   padding: 0;
+  overflow: hidden;
   font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', Roboto, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+html {
+  overflow: hidden;
+}
+
+.app-root :deep(.v-main) {
+  padding: 0 !important;
+}
+
+.app-root :deep(.v-main__wrap) {
+  padding: 0 !important;
+}
+
+.app-root :deep(.v-application--wrap) {
+  min-height: 100vh !important;
+  max-height: 100vh !important;
+}
+
+.app-root :deep(.v-container) {
+  padding: 0 !important;
 }
 
 .app-toolbar {

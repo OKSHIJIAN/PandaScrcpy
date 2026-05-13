@@ -18,6 +18,9 @@
         <span class="share-dot" />
         <span class="share-label">分享中</span>
         <span v-if="viewerCount > 0" class="share-badge">{{ viewerCount }}</span>
+        <span class="fps-badge" :class="{ static: isStatic }">
+          {{ isStatic ? '静态' : fps + 'fps' }}
+        </span>
       </button>
       <button class="share-stop" title="停止分享" @click="handleStopShare">
         <v-icon size="14">mdi-stop</v-icon>
@@ -103,6 +106,8 @@ const {
   viewerCount,
   connectionState,
   error,
+  fps,
+  isStatic,
   startSharing,
   stopSharing,
 } = useScreenShare();
@@ -214,6 +219,21 @@ async function copyPeerId() {
   background: rgba(34, 197, 94, 0.15);
   font-size: 10px;
   font-weight: 600;
+}
+
+.fps-badge {
+  padding: 0 4px;
+  border-radius: 3px;
+  background: rgba(34, 197, 94, 0.12);
+  font-size: 9px;
+  font-weight: 500;
+  color: #22c55e;
+  margin-left: 4px;
+}
+
+.fps-badge.static {
+  background: rgba(148, 163, 184, 0.15);
+  color: #94a3b8;
 }
 
 .share-stop {

@@ -1,5 +1,5 @@
 <template>
-  <v-container fluid class="remote-view pa-0">
+  <v-container fluid class="remote-view">
     <ViewerPanel :initial-peer-id="initialPeerId" :is-figma-embed="isFigmaEmbed" />
   </v-container>
 </template>
@@ -16,8 +16,20 @@ defineProps<{
 <style scoped>
 .remote-view {
   height: 100vh;
-  width: 100%;
+  width: 100vw;
   display: flex;
   flex-direction: column;
+  padding: 0 !important;
+  margin: 0 !important;
+  overflow: hidden;
+  background: #000;
+}
+
+.remote-view :deep(.v-main__wrap) {
+  padding: 0 !important;
+}
+
+.remote-view :deep(.v-container) {
+  padding: 0 !important;
 }
 </style>

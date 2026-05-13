@@ -209,6 +209,20 @@ const pairedDevicesRef = ref(null);
 const handleAddDevice = () => {
   pairedDevicesRef.value?.handleAddDevice();
 };
+
+// 全屏相关
+const fullscreenContainer = ref<HTMLElement | null>(null);
+
+function toggleFullscreen() {
+  const container = document.querySelector('.panel-inner');
+  if (!container) return;
+
+  if (document.fullscreenElement) {
+    document.exitFullscreen();
+  } else {
+    container.requestFullscreen();
+  }
+}
 </script>
 
 <template>
@@ -235,6 +249,18 @@ const handleAddDevice = () => {
         />
       </div>
       <ShareButton v-if="connected" class="ml-1 flex-shrink-0" />
+      <v-btn
+        v-if="connected"
+        icon
+        variant="text"
+        size="small"
+        color="secondary"
+        class="flex-shrink-0"
+        title="全屏显示"
+        @click="toggleFullscreen"
+      >
+        <v-icon size="20">mdi-arrow-expand-all</v-icon>
+      </v-btn>
       <slot name="remote-button" />
       <v-spacer />
       <v-btn
@@ -491,6 +517,42 @@ const handleAddDevice = () => {
   height: 100%;
   padding: 0;
   box-sizing: border-box;
+}
+
+/* 全屏模式下隐藏顶部栏 */
+:fullscreen .top-bar,
+:-webkit-full-screen .top-bar {
+  display: none !important;
+}
+
+:fullscreen .v-app-bar,
+:-webkit-full-screen .v-app-bar {
+  display: none !important;
+}
+
+:fullscreen .main-area,
+:-webkit-full-screen .main-area {
+  height: 100vh !important;
+}
+
+:fullscreen .layout,
+:-webkit-full-screen .layout {
+  height: 100vh !important;
+}
+
+:fullscreen .right-panel,
+:-webkit-full-screen .right-panel {
+  display: none !important;
+}
+
+:fullscreen .resizer,
+:-webkit-full-screen .resizer {
+  display: none !important;
+}
+
+:fullscreen .panel-inner,
+:-webkit-full-screen .panel-inner {
+  padding: 16px !important;
 }
 
 .right-card {

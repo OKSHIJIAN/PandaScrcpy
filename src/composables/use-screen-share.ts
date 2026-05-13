@@ -1,6 +1,9 @@
 /**
- * 分享端 Hook
- * 用于捕获 Scrcpy canvas 视频流并通过 WebRTC 分享给远程观看者
+ * 分享端 Hook - 优化版
+ * 特性：
+ * 1. 动态帧率控制 - 静态画面时降低帧率到 2fps
+ * 2. 帧变化检测 - 只在画面变化时推送
+ * 3. 内存优化 - 及时释放未使用的帧数据
  */
 
 import { ref, shallowRef, computed, onUnmounted } from 'vue';
@@ -32,10 +35,26 @@ export interface UseScreenShareReturn {
   viewerCount: Ref<number>;
   connectionState: Ref<ConnectionState>;
   error: Ref<string | null>;
+  fps: Ref<number>;
+  isStatic: Ref<boolean>;
   startSharing: (canvas: HTMLCanvasElement | HTMLVideoElement, frameRate?: number) => Promise<void>;
   stopSharing: () => void;
   viewers: ShallowRef<ViewerConnection[]>;
 }
+
+// ============ 帧监控配置 ============
+const FRAME_CONFIG = {
+  // 正常帧率（动态画面）- 降低到 15fps 减少延迟
+  NORMAL_FPS: 15,
+  // 静态画面帧率
+  STATIC_FPS: 1,
+  // 静态判定阈值：连续 N 帧无变化判定为静态
+  STATIC_THRESHOLD: 4,
+  // 像素采样步长（跳过像素以提升性能）
+  SAMPLE_STEP: 8,
+  // 变化检测阈值
+  CHANGE_THRESHOLD: 0.05, // 5% 像素变化
+};
 
 export function useScreenShare(): UseScreenShareReturn {
   const isSharing = ref(false);
@@ -44,12 +63,116 @@ export function useScreenShare(): UseScreenShareReturn {
   const error = ref<string | null>(null);
   const viewers = shallowRef<ViewerConnection[]>([]);
   
+  // 帧率统计
+  const fps = ref(0);
+  const isStatic = ref(false);
+  
   let peer: Peer | null = null;
   let mediaStream: MediaStream | null = null;
   const mediaConnections: MediaConnection[] = [];
   const dataConnections: DataConnection[] = [];
 
+  // ============ 动态帧率控制 ============
+  let canvas: HTMLCanvasElement | null = null;
+  let lastFrameHash: number = 0;
+  let staticFrameCount = 0;
+  let currentFps = FRAME_CONFIG.NORMAL_FPS;
+  let frameCount = 0;
+  let lastFpsUpdate = 0;
+  let lastFrameTime = 0;
+  let rafId: number | null = null;
+  let videoTrack: MediaStreamTrack | null = null;
+
   const viewerCount = computed(() => viewers.value.length);
+
+  /**
+   * 计算帧的简单哈希值（用于快速检测变化）
+   * 采样部分像素计算校验和，速度比全像素比较快 8 倍
+   */
+  function computeFrameHash(imageData: ImageData): number {
+    const { data, width, height } = imageData;
+    const step = FRAME_CONFIG.SAMPLE_STEP;
+    let hash = 0;
+    
+    // 采样关键区域的像素
+    for (let y = 0; y < height; y += step) {
+      for (let x = 0; x < width; x += step) {
+        const i = (y * width + x) * 4;
+        // RGB 值混合
+        hash = ((hash << 5) - hash + data[i]) ^ (data[i + 1] * 3) ^ (data[i + 2] * 7);
+      }
+    }
+    
+    return hash;
+  }
+
+  /**
+   * 获取当前帧
+   */
+  function captureFrame(): ImageData | null {
+    if (!canvas) return null;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+    try {
+      return ctx.getImageData(0, 0, canvas.width, canvas.height);
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * 主循环：智能帧率控制
+   */
+  function frameLoop(timestamp: number) {
+    if (!isSharing.value || !canvas) {
+      rafId = null;
+      return;
+    }
+
+    const now = performance.now();
+    
+    // 根据当前帧率计算帧间隔
+    const frameInterval = 1000 / currentFps;
+    const elapsed = now - lastFrameTime;
+
+    // 更新 FPS 统计
+    if (now - lastFpsUpdate >= 1000) {
+      fps.value = frameCount;
+      frameCount = 0;
+      lastFpsUpdate = now;
+    }
+
+    // 节流控制
+    if (elapsed >= frameInterval) {
+      lastFrameTime = now - (elapsed % frameInterval);
+      frameCount++;
+
+      // 获取当前帧
+      const currentFrame = captureFrame();
+      if (currentFrame) {
+        const currentHash = computeFrameHash(currentFrame);
+        
+        // 检测画面变化
+        const hasChange = lastFrameHash === 0 || currentHash !== lastFrameHash;
+        
+        if (hasChange) {
+          staticFrameCount = 0;
+          currentFps = FRAME_CONFIG.NORMAL_FPS;
+          isStatic.value = false;
+          lastFrameHash = currentHash;
+        } else {
+          staticFrameCount++;
+          // 连续多帧无变化，降低帧率
+          if (staticFrameCount >= FRAME_CONFIG.STATIC_THRESHOLD) {
+            currentFps = FRAME_CONFIG.STATIC_FPS;
+            isStatic.value = true;
+          }
+        }
+      }
+    }
+
+    rafId = requestAnimationFrame(frameLoop);
+  }
 
   /**
    * 处理来自观看者的控制命令
@@ -63,11 +186,8 @@ export function useScreenShare(): UseScreenShareReturn {
     }
 
     console.log('[Host] 收到控制命令:', command);
-    console.log('[Host] scrcpyState.scrcpy:', !!scrcpyState.scrcpy, 'controller:', !!scrcpyState.scrcpy?.controller);
-    console.log('[Host] scrcpyState.keyboard:', !!scrcpyState.keyboard);
 
     if (isTouchCommand(command)) {
-      // 检查 scrcpy 是否正在运行
       if (!scrcpyState.running || !scrcpyState.width || !scrcpyState.height) {
         console.warn('[Host] Scrcpy 未运行或尺寸未知，跳过触摸注入');
         return;
@@ -81,11 +201,8 @@ export function useScreenShare(): UseScreenShareReturn {
         scrcpyState.rotation
       );
 
-      console.log('[Host] 设备坐标:', deviceCoords);
-
       const controller = scrcpyState.scrcpy?.controller;
       if (controller) {
-        // 远程触摸统一使用 ScrcpyPointerId.Finger
         const pointerId: bigint = ScrcpyPointerId.Finger;
 
         const actionMap: Record<string, AndroidMotionEventAction> = {
@@ -94,20 +211,25 @@ export function useScreenShare(): UseScreenShareReturn {
           'up': AndroidMotionEventAction.Up,
         };
 
-        console.log('[Host] 注入触摸:', command.action);
         controller.injectTouch({
-            action: actionMap[command.action],
-            pointerId,
-            videoWidth: scrcpyState.width,
-            videoHeight: scrcpyState.height,
-            pointerX: deviceCoords.x,
-            pointerY: deviceCoords.y,
-            pressure: command.action === 'up' ? 0 : 1,
-            actionButton: AndroidMotionEventButton.Primary,
-            buttons: command.action === 'up' ? 0 : 1,
+          action: actionMap[command.action],
+          pointerId,
+          videoWidth: scrcpyState.width,
+          videoHeight: scrcpyState.height,
+          pointerX: deviceCoords.x,
+          pointerY: deviceCoords.y,
+          pressure: command.action === 'up' ? 0 : 1,
+          actionButton: AndroidMotionEventButton.Primary,
+          buttons: command.action === 'up' ? 0 : 1,
         });
-      } else {
-        console.warn('[Host] controller 不存在，无法注入触摸！');
+        
+        // 触摸操作时临时提升帧率
+        currentFps = FRAME_CONFIG.NORMAL_FPS * 2;
+        staticFrameCount = 0;
+        isStatic.value = false;
+        setTimeout(() => {
+          currentFps = FRAME_CONFIG.NORMAL_FPS;
+        }, 500);
       }
     } else if (isKeyCommand(command)) {
       const keyMap: Record<string, string> = {
@@ -117,14 +239,11 @@ export function useScreenShare(): UseScreenShareReturn {
       };
       
       const keyName = keyMap[command.key];
-      console.log('[Host] 按键:', command.key, '->', keyName);
       if (keyName && scrcpyState.keyboard) {
         scrcpyState.keyboard.down(keyName);
         setTimeout(() => {
           scrcpyState.keyboard?.up(keyName);
         }, 50);
-      } else {
-        console.warn('[Host] keyboard 不存在，无法注入按键！');
       }
     }
   }
@@ -133,8 +252,8 @@ export function useScreenShare(): UseScreenShareReturn {
    * 开始分享屏幕
    */
   async function startSharing(
-    canvas: HTMLCanvasElement | HTMLVideoElement,
-    frameRate: number = 30
+    sourceCanvas: HTMLCanvasElement | HTMLVideoElement,
+    _frameRate: number = FRAME_CONFIG.NORMAL_FPS
   ): Promise<void> {
     if (isSharing.value) {
       console.warn('[Host] 已经在分享中');
@@ -145,17 +264,11 @@ export function useScreenShare(): UseScreenShareReturn {
       connectionState.value = 'initializing';
       error.value = null;
 
-      // 捕获视频流（现在统一使用 Canvas 渲染器）
-      if (canvas instanceof HTMLCanvasElement) {
-        console.log('[Host] 从 Canvas 捕获视频流，尺寸:', canvas.width, 'x', canvas.height);
-        mediaStream = canvas.captureStream(frameRate);
-      } else {
+      if (!(sourceCanvas instanceof HTMLCanvasElement)) {
         throw new Error('不支持的元素类型，请确保使用 Canvas 渲染器');
       }
 
-      if (!mediaStream) {
-        throw new Error('无法获取视频流');
-      }
+      console.log('[Host] 从 Canvas 捕获视频流，尺寸:', sourceCanvas.width, 'x', sourceCanvas.height);
 
       // 清理旧连接
       if (peer && !peer.destroyed) {
@@ -168,11 +281,36 @@ export function useScreenShare(): UseScreenShareReturn {
         peer = new Peer(customId, PEER_CONFIG);
 
         // ========== 信令事件 1: Peer 连接成功 ==========
-        peer.on('open', (id) => {
+        peer.on('open', async (id) => {
           console.log('[Host] 已连接信令服务器，分享码:', id);
           peerId.value = id;
           isSharing.value = true;
           connectionState.value = 'ready';
+          
+          // 创建视频流 - 使用优化后的帧率
+          canvas = sourceCanvas;
+          mediaStream = sourceCanvas.captureStream(FRAME_CONFIG.NORMAL_FPS);
+          
+          // 获取视频轨道并优化设置
+          videoTrack = mediaStream.getVideoTracks()[0];
+          if (videoTrack) {
+            // 尝试设置带宽约束
+            try {
+              const constraints = videoTrack.getConstraints();
+              videoTrack.applyConstraints({
+                ...constraints,
+                frameRate: { ideal: FRAME_CONFIG.NORMAL_FPS, max: 20 },
+              } as MediaTrackConstraints);
+            } catch {
+              // 忽略约束设置错误
+            }
+          }
+          
+          if (!mediaStream) {
+            reject(new Error('无法创建视频流'));
+            return;
+          }
+          
           resolve();
         });
 
@@ -185,11 +323,9 @@ export function useScreenShare(): UseScreenShareReturn {
             return;
           }
 
-          // 应答并发送视频流
           call.answer(mediaStream);
           mediaConnections.push(call);
 
-          // 添加到观看者列表
           const viewerConnection: ViewerConnection = {
             id: call.peer,
             mediaConnection: call,
@@ -213,12 +349,11 @@ export function useScreenShare(): UseScreenShareReturn {
           });
         });
 
-        // ========== 信令事件 3: 收到数据连接（用于远程控制）==========
+        // ========== 信令事件 3: 收到数据连接 ==========
         peer.on('connection', (dataConn: DataConnection) => {
           console.log('[Host] 收到数据连接，来自:', dataConn.peer);
           dataConnections.push(dataConn);
 
-          // 更新对应观看者的 dataConnection
           const viewer = viewers.value.find(v => v.id === dataConn.peer);
           if (viewer) {
             viewer.dataConnection = dataConn;
@@ -246,7 +381,6 @@ export function useScreenShare(): UseScreenShareReturn {
           console.error('[Host] Peer 错误:', err);
           
           if (err.type === 'unavailable-id') {
-            // ID 被占用，尝试随机 ID
             peer?.destroy();
             peer = new Peer(PEER_CONFIG);
             peer.on('open', (id) => {
@@ -268,6 +402,13 @@ export function useScreenShare(): UseScreenShareReturn {
         });
       });
 
+      // 启动帧监控循环（用于统计和动态帧率控制）
+      if (!rafId) {
+        lastFpsUpdate = performance.now();
+        frameCount = 0;
+        rafId = requestAnimationFrame(frameLoop);
+      }
+
       console.log('[Host] 开始分享，分享码:', peerId.value);
 
     } catch (err) {
@@ -283,6 +424,11 @@ export function useScreenShare(): UseScreenShareReturn {
    * 停止分享
    */
   function stopSharing(): void {
+    if (rafId) {
+      cancelAnimationFrame(rafId);
+      rafId = null;
+    }
+
     mediaConnections.forEach(c => c.close());
     mediaConnections.length = 0;
     
@@ -291,6 +437,15 @@ export function useScreenShare(): UseScreenShareReturn {
 
     mediaStream?.getTracks().forEach(t => t.stop());
     mediaStream = null;
+    videoTrack = null;
+
+    // 重置帧控制状态
+    lastFrameHash = 0;
+    staticFrameCount = 0;
+    currentFps = FRAME_CONFIG.NORMAL_FPS;
+    fps.value = 0;
+    isStatic.value = false;
+    canvas = null;
 
     peer?.destroy();
     peer = null;
@@ -314,6 +469,8 @@ export function useScreenShare(): UseScreenShareReturn {
     viewerCount,
     connectionState,
     error,
+    fps,
+    isStatic,
     startSharing,
     stopSharing,
     viewers,

@@ -34,24 +34,6 @@
     </div>
 
     <div v-else class="video-area">
-      <div v-if="!isFigmaEmbed" class="status-bar">
-        <span class="status-chip">
-          <span class="status-dot" />
-          已连接
-        </span>
-        <v-spacer />
-        <v-btn
-          variant="text"
-          size="x-small"
-          color="error"
-          class="text-none"
-          @click="handleDisconnect"
-        >
-          <v-icon start size="14">mdi-close</v-icon>
-          断开
-        </v-btn>
-      </div>
-
       <div class="video-wrapper" ref="videoWrapper">
         <div
           class="touch-overlay"
@@ -68,18 +50,6 @@
             class="remote-video"
           />
         </div>
-      </div>
-
-      <div v-if="!isFigmaEmbed" class="nav-bar">
-        <button class="nav-btn" @click="touchController.sendBackKey">
-          <v-icon size="20">mdi-arrow-left</v-icon>
-        </button>
-        <button class="nav-btn" @click="touchController.sendHomeKey">
-          <v-icon size="20">mdi-circle-outline</v-icon>
-        </button>
-        <button class="nav-btn" @click="touchController.sendRecentsKey">
-          <v-icon size="20">mdi-square-outline</v-icon>
-        </button>
       </div>
     </div>
 
@@ -193,10 +163,14 @@ function handleDisconnect() {
 
 <style scoped>
 .viewer-panel {
-  width: 100%;
-  height: 100%;
+  width: 100vw;
+  height: 100vh;
   display: flex;
   flex-direction: column;
+  background: #000;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
 .connection-form {
@@ -246,37 +220,16 @@ function handleDisconnect() {
   height: 100%;
 }
 
-.status-bar {
-  display: flex;
-  align-items: center;
-  padding: 8px 12px;
-  border-bottom: 1px solid var(--border);
-}
-
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 12px;
-  font-weight: 500;
-  color: #16a34a;
-}
-
-.status-dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #22c55e;
-}
-
 .video-wrapper {
   flex: 1;
   display: flex;
   justify-content: center;
   align-items: center;
-  background: #18181b;
+  background: #000;
   overflow: hidden;
   touch-action: none;
+  width: 100%;
+  height: 100%;
 }
 
 .touch-overlay {
@@ -290,34 +243,9 @@ function handleDisconnect() {
 }
 
 .remote-video {
-  max-width: 100%;
-  max-height: 100%;
+  width: 100%;
+  height: 100%;
   object-fit: contain;
   touch-action: none;
-}
-
-.nav-bar {
-  display: flex;
-  justify-content: space-around;
-  padding: 8px 16px;
-  border-top: 1px solid var(--border);
-}
-
-.nav-btn {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 36px;
-  border: none;
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-
-.nav-btn:hover {
-  background: var(--bg-hover);
 }
 </style>
