@@ -20,6 +20,7 @@ export interface UseScreenViewerReturn {
   connect: (hostPeerId: string) => Promise<void>;
   disconnect: () => void;
   sendCommand: (command: RemoteControlCommand) => void;
+  sendSettings: (settings: { fps?: number; quality?: number }) => void;
 }
 
 export function useScreenViewer(): UseScreenViewerReturn {
@@ -31,6 +32,7 @@ export function useScreenViewer(): UseScreenViewerReturn {
   let peer: Peer | null = null;
   let call: MediaConnection | null = null;
   let dataConn: DataConnection | null = null;
+  let dataConnReady = ref(false);
   let timeout: ReturnType<typeof setTimeout> | null = null;
 
   /**
@@ -72,6 +74,7 @@ export function useScreenViewer(): UseScreenViewerReturn {
         
         dataConn.on('open', () => {
           console.log('[Viewer] 数据通道已建立');
+          dataConnReady.value = true;
         });
 
         dataConn.on('error', (err) => {
@@ -214,6 +217,24 @@ export function useScreenViewer(): UseScreenViewerReturn {
     console.log('[Viewer] 命令已发送:', JSON.stringify(command));
   }
 
+  /**
+   * 发送画质设置命令
+   */
+  function sendSettings(settings: { fps?: number; quality?: number }): void {
+    if (!dataConnReady.value || !dataConn) {
+      console.warn('[Viewer] 数据通道未就绪，无法发送设置');
+      return;
+    }
+    
+    const command = {
+      type: 'settings' as const,
+      ...settings,
+    };
+    
+    dataConn.send(command);
+    console.log('[Viewer] 画质设置已发送:', command);
+  }
+
   onUnmounted(() => {
     disconnect();
   });
@@ -226,5 +247,6 @@ export function useScreenViewer(): UseScreenViewerReturn {
     connect,
     disconnect,
     sendCommand,
+    sendSettings,
   };
 }

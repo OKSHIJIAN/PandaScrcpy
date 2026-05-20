@@ -11,7 +11,7 @@ import type { Ref, ShallowRef } from 'vue';
 import Peer from 'peerjs';
 import type { MediaConnection, DataConnection } from 'peerjs';
 import { PEER_CONFIG, generateShareId } from '@/services/peer-config';
-import { deserializeCommand, isTouchCommand, isKeyCommand } from '@/services/command-types';
+import { deserializeCommand, isTouchCommand, isKeyCommand, isSettingsCommand } from '@/services/command-types';
 import { normalizedToDevice } from '@/services/coord-utils';
 import scrcpyState from '@/components/Scrcpy/scrcpy-state';
 import {
@@ -37,6 +37,8 @@ export interface UseScreenShareReturn {
   error: Ref<string | null>;
   fps: Ref<number>;
   isStatic: Ref<boolean>;
+  targetFps: Ref<number>;
+  encodingQuality: Ref<number>;
   startSharing: (canvas: HTMLCanvasElement | HTMLVideoElement, frameRate?: number) => Promise<void>;
   stopSharing: () => void;
   viewers: ShallowRef<ViewerConnection[]>;
@@ -45,7 +47,7 @@ export interface UseScreenShareReturn {
 // ============ 帧监控配置 ============
 const FRAME_CONFIG = {
   // 正常帧率（动态画面）- 降低到 15fps 减少延迟
-  NORMAL_FPS: 15,
+  DEFAULT_FPS: 15,
   // 静态画面帧率
   STATIC_FPS: 1,
   // 静态判定阈值：连续 N 帧无变化判定为静态
@@ -54,6 +56,10 @@ const FRAME_CONFIG = {
   SAMPLE_STEP: 8,
   // 变化检测阈值
   CHANGE_THRESHOLD: 0.05, // 5% 像素变化
+  // 默认编码质量
+  DEFAULT_QUALITY: 80,
+  // 触摸时临时帧率倍数
+  TOUCH_FPS_MULTIPLIER: 2,
 };
 
 export function useScreenShare(): UseScreenShareReturn {
@@ -67,6 +73,10 @@ export function useScreenShare(): UseScreenShareReturn {
   const fps = ref(0);
   const isStatic = ref(false);
   
+  // 画质设置（可由观看端调整）
+  const targetFps = ref(FRAME_CONFIG.DEFAULT_FPS);
+  const encodingQuality = ref(FRAME_CONFIG.DEFAULT_QUALITY);
+  
   let peer: Peer | null = null;
   let mediaStream: MediaStream | null = null;
   const mediaConnections: MediaConnection[] = [];
@@ -76,7 +86,7 @@ export function useScreenShare(): UseScreenShareReturn {
   let canvas: HTMLCanvasElement | null = null;
   let lastFrameHash: number = 0;
   let staticFrameCount = 0;
-  let currentFps = FRAME_CONFIG.NORMAL_FPS;
+  let currentFps = targetFps.value;
   let frameCount = 0;
   let lastFpsUpdate = 0;
   let lastFrameTime = 0;
@@ -157,7 +167,7 @@ export function useScreenShare(): UseScreenShareReturn {
         
         if (hasChange) {
           staticFrameCount = 0;
-          currentFps = FRAME_CONFIG.NORMAL_FPS;
+          currentFps = targetFps.value;
           isStatic.value = false;
           lastFrameHash = currentHash;
         } else {
@@ -224,11 +234,11 @@ export function useScreenShare(): UseScreenShareReturn {
         });
         
         // 触摸操作时临时提升帧率
-        currentFps = FRAME_CONFIG.NORMAL_FPS * 2;
+        currentFps = targetFps.value * FRAME_CONFIG.TOUCH_FPS_MULTIPLIER;
         staticFrameCount = 0;
         isStatic.value = false;
         setTimeout(() => {
-          currentFps = FRAME_CONFIG.NORMAL_FPS;
+          currentFps = targetFps.value;
         }, 500);
       }
     } else if (isKeyCommand(command)) {
@@ -245,6 +255,34 @@ export function useScreenShare(): UseScreenShareReturn {
           scrcpyState.keyboard?.up(keyName);
         }, 50);
       }
+    } else if (isSettingsCommand(command)) {
+      // 处理画质设置命令
+      console.log('[Host] 收到设置命令:', command);
+      
+      if (command.fps !== undefined) {
+        targetFps.value = command.fps;
+        currentFps = command.fps;
+        console.log('[Host] 观看端设置帧率:', command.fps);
+        
+        // 更新视频轨道帧率
+        if (videoTrack) {
+          try {
+            videoTrack.applyConstraints({
+              frameRate: { ideal: command.fps, max: Math.min(command.fps + 10, 60) },
+            } as MediaTrackConstraints);
+            console.log('[Host] 视频轨道帧率已更新');
+          } catch (e) {
+            console.warn('[Host] 无法更新视频轨道帧率:', e);
+          }
+        }
+      }
+      
+      if (command.quality !== undefined) {
+        encodingQuality.value = command.quality;
+        console.log('[Host] 观看端设置编码质量:', command.quality);
+        // 注意：Canvas captureStream 不支持直接调整 JPEG 质量
+        // 质量控制需要在源头 (scrcpy) 处理
+      }
     }
   }
 
@@ -253,7 +291,7 @@ export function useScreenShare(): UseScreenShareReturn {
    */
   async function startSharing(
     sourceCanvas: HTMLCanvasElement | HTMLVideoElement,
-    _frameRate: number = FRAME_CONFIG.NORMAL_FPS
+    _frameRate: number = FRAME_CONFIG.DEFAULT_FPS
   ): Promise<void> {
     if (isSharing.value) {
       console.warn('[Host] 已经在分享中');
@@ -287,22 +325,36 @@ export function useScreenShare(): UseScreenShareReturn {
           isSharing.value = true;
           connectionState.value = 'ready';
           
-          // 创建视频流 - 使用优化后的帧率
+          // 创建视频流 - 低延迟优化配置
           canvas = sourceCanvas;
-          mediaStream = sourceCanvas.captureStream(FRAME_CONFIG.NORMAL_FPS);
           
-          // 获取视频轨道并优化设置
+          // 计算合适的分辨率（限制最大宽度减少编码延迟）
+          const maxCaptureWidth = 720;  // 降低分辨率以减少延迟
+          let captureFps = targetFps.value;
+          
+          mediaStream = sourceCanvas.captureStream(captureFps);
+          
+          // 获取视频轨道并应用低延迟设置
           videoTrack = mediaStream.getVideoTracks()[0];
           if (videoTrack) {
-            // 尝试设置带宽约束
             try {
-              const constraints = videoTrack.getConstraints();
+              // 应用低延迟约束
               videoTrack.applyConstraints({
-                ...constraints,
-                frameRate: { ideal: FRAME_CONFIG.NORMAL_FPS, max: 20 },
-              } as MediaTrackConstraints);
-            } catch {
-              // 忽略约束设置错误
+                width: { max: maxCaptureWidth, ideal: sourceCanvas.width > maxCaptureWidth ? maxCaptureWidth : sourceCanvas.width },
+                height: { max: Math.round(maxCaptureWidth * sourceCanvas.height / sourceCanvas.width) },
+                frameRate: { ideal: captureFps, max: captureFps + 5 },
+                latencyMode: 'ultra-low-latency' as any,
+              } as MediaTrackConstraints & { latencyMode?: string });
+              
+              console.log('[Host] 视频轨道已配置:', videoTrack.getSettings());
+            } catch (e) {
+              console.warn('[Host] 无法应用低延迟约束:', e);
+              // 降级：只设置基本约束
+              try {
+                videoTrack.applyConstraints({
+                  frameRate: { ideal: captureFps, max: 30 },
+                } as MediaTrackConstraints);
+              } catch {}
             }
           }
           
@@ -323,8 +375,32 @@ export function useScreenShare(): UseScreenShareReturn {
             return;
           }
 
+          // 回答并应用低延迟配置
           call.answer(mediaStream);
           mediaConnections.push(call);
+          
+          // 获取 RTCPeerConnection 进行低延迟配置
+          setTimeout(() => {
+            try {
+              const pc = (call as any).peerConnection as RTCPeerConnection;
+              if (pc) {
+                // 设置发送端的编码参数，降低延迟
+                const senders = pc.getSenders();
+                senders.forEach(sender => {
+                  if (sender.track?.kind === 'video') {
+                    sender.getParameters().then((params) => {
+                      if (!params.encodings) params.encodings = [{}];
+                      params.encodings[0].maxBitrate = 1500000; // 1.5Mbps 上限
+                      params.encodings[0].scaleResolutionDownBy = sourceCanvas.width > 720 ? Math.ceil(sourceCanvas.width / 720) : 1;
+                      return sender.setParameters(params);
+                    }).catch(e => console.warn('[Host] 编码参数设置失败:', e));
+                  }
+                });
+              }
+            } catch (e) {
+              console.warn('[Host] 低延迟配置跳过:', e);
+            }
+          }, 1000); // 等待连接建立后
 
           const viewerConnection: ViewerConnection = {
             id: call.peer,
@@ -442,9 +518,11 @@ export function useScreenShare(): UseScreenShareReturn {
     // 重置帧控制状态
     lastFrameHash = 0;
     staticFrameCount = 0;
-    currentFps = FRAME_CONFIG.NORMAL_FPS;
+    currentFps = targetFps.value;
     fps.value = 0;
     isStatic.value = false;
+    targetFps.value = FRAME_CONFIG.DEFAULT_FPS;
+    encodingQuality.value = FRAME_CONFIG.DEFAULT_QUALITY;
     canvas = null;
 
     peer?.destroy();
@@ -471,6 +549,8 @@ export function useScreenShare(): UseScreenShareReturn {
     error,
     fps,
     isStatic,
+    targetFps,
+    encodingQuality,
     startSharing,
     stopSharing,
     viewers,
