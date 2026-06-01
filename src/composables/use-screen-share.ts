@@ -97,6 +97,7 @@ export function useScreenShare(): UseScreenShareReturn {
   let mediaStream: MediaStream | null = null;
   const mediaConnections: MediaConnection[] = [];
   const dataConnections: DataConnection[] = [];
+  let _figmaNotifyPeer: Peer | null = null;  // 跟踪通知 Figma 的临时 Peer，避免竞态
 
   // ============ 动态帧率控制 ============
   let canvas: HTMLCanvasElement | null = null;
@@ -328,11 +329,22 @@ export function useScreenShare(): UseScreenShareReturn {
       if (peer && !peer.destroyed) {
         peer.destroy();
       }
+      
+      // 清理旧的 Figma 通知 Peer（避免 PeerJS 服务器限速导致 WebSocket 失败）
+      if (_figmaNotifyPeer && !_figmaNotifyPeer.destroyed) {
+        _figmaNotifyPeer.destroy();
+        _figmaNotifyPeer = null;
+      }
 
       const customId = generateShareId();
       
-      await new Promise<void>((resolve, reject) => {
-        peer = new Peer(customId, PEER_CONFIG);
+      // 重试创建 Peer（PeerJS 免费服务器可能限速）
+      let retries = 0;
+      const maxRetries = 3;
+      while (retries < maxRetries) {
+        try {
+          await new Promise<void>((resolve, reject) => {
+            peer = new Peer(customId, PEER_CONFIG);
 
         // ========== 信令事件 1: Peer 连接成功 ==========
         peer.on('open', async (id) => {
@@ -493,6 +505,18 @@ export function useScreenShare(): UseScreenShareReturn {
           peer?.reconnect();
         });
       });
+          break; // 成功，退出重试循环
+        } catch (err: any) {
+          retries++;
+          const msg = err?.message || String(err);
+          console.warn(`[Host] Peer 创建失败 (${retries}/${maxRetries}):`, msg);
+          if (retries >= maxRetries) throw err;
+          // 指数退避：1s, 2s, 4s
+          const delay = Math.pow(2, retries - 1) * 1000;
+          console.log(`[Host] ${delay}ms 后重试...`);
+          await new Promise(r => setTimeout(r, delay));
+        }
+      }
 
       // 启动帧监控循环（用于统计和动态帧率控制）
       if (!rafId) {
@@ -584,18 +608,24 @@ export function useScreenShare(): UseScreenShareReturn {
     if (!sharePeerId) {
       // 停止分享时：发送 SHARE_STOP 信号通知 Figma 插件重置画面
       console.log('[Host] 发送停止信号到 Figma 插件:', figmaPeerId);
-      const stopPeer = new Peer(PEER_CONFIG);
+      
+      // 清理旧的 Figma 通知 Peer
+      if (_figmaNotifyPeer && !_figmaNotifyPeer.destroyed) {
+        _figmaNotifyPeer.destroy();
+      }
+      _figmaNotifyPeer = new Peer(PEER_CONFIG);
+      const stopPeer = _figmaNotifyPeer;
       stopPeer.on('open', () => {
         const conn = stopPeer.connect(figmaPeerId, { reliable: true });
         conn.on('open', () => {
           conn.send({ type: 'SHARE_STOP' });
-          setTimeout(() => { conn.close(); stopPeer.destroy(); }, 1000);
+          setTimeout(() => { conn.close(); stopPeer.destroy(); _figmaNotifyPeer = null; }, 1000);
         });
-        conn.on('error', () => stopPeer.destroy());
+        conn.on('error', () => { stopPeer.destroy(); _figmaNotifyPeer = null; });
       });
-      stopPeer.on('error', () => stopPeer.destroy());
+      stopPeer.on('error', () => { stopPeer.destroy(); _figmaNotifyPeer = null; });
       // 超时保护
-      setTimeout(() => { if (!stopPeer.destroyed) stopPeer.destroy(); }, 8000);
+      setTimeout(() => { if (!stopPeer.destroyed) { stopPeer.destroy(); _figmaNotifyPeer = null; } }, 8000);
       return;
     }
 
@@ -604,8 +634,13 @@ export function useScreenShare(): UseScreenShareReturn {
 
     console.log('[Host] 通过 WebRTC 连接 Figma 插件:', figmaPeerId);
 
+    // 清理旧的 Figma 通知 Peer
+    if (_figmaNotifyPeer && !_figmaNotifyPeer.destroyed) {
+      _figmaNotifyPeer.destroy();
+    }
     // 创建临时 Peer 用于回连 Figma 插件
-    const tempPeer = new Peer(PEER_CONFIG);
+    _figmaNotifyPeer = new Peer(PEER_CONFIG);
+    const tempPeer = _figmaNotifyPeer;
 
     tempPeer.on('open', (tempId) => {
       console.log('[Host] 临时 Peer 已上线:', tempId, '→ 连接', figmaPeerId);
@@ -626,6 +661,7 @@ export function useScreenShare(): UseScreenShareReturn {
         setTimeout(() => {
           conn.close();
           tempPeer.destroy();
+          _figmaNotifyPeer = null;
           console.log('[Host] 临时 Peer 已销毁');
         }, 2000);
       });
@@ -633,6 +669,7 @@ export function useScreenShare(): UseScreenShareReturn {
       conn.on('error', (err) => {
         console.error('[Host] DataChannel 连接 Figma 插件失败:', err);
         tempPeer.destroy();
+        _figmaNotifyPeer = null;
       });
 
       // 超时保护
@@ -640,12 +677,14 @@ export function useScreenShare(): UseScreenShareReturn {
         if (!tempPeer.destroyed) {
           console.warn('[Host] 连接 Figma 插件超时，销毁临时 Peer');
           tempPeer.destroy();
+          _figmaNotifyPeer = null;
         }
       }, 10000);
     });
 
     tempPeer.on('error', (err) => {
       console.error('[Host] 临时 Peer 错误:', err);
+      _figmaNotifyPeer = null;
     });
   }
 
