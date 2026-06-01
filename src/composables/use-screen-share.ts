@@ -4,7 +4,14 @@
  * 1. 动态帧率控制 - 静态画面时降低帧率到 2fps
  * 2. 帧变化检测 - 只在画面变化时推送
  * 3. 内存优化 - 及时释放未使用的帧数据
+ * 
+ * 通信方式（v2）：通过本地 HTTP 中继服务器 relay-server.js (端口 18793)
+ *   Host → POST /share-url → 中继服务器 → GET /share-url → Figma 插件
+ *   外部浏览器和 Figma 插件是独立窗口，postMessage 无法跨越窗口通信
  */
+
+/** 本地中继服务器地址（与 relay-server.js 端口一致） */
+const RELAY_SERVER = 'http://127.0.0.1:18793/share-url';
 
 import { ref, shallowRef, computed, onUnmounted } from 'vue';
 import type { Ref, ShallowRef } from 'vue';
@@ -487,8 +494,8 @@ export function useScreenShare(): UseScreenShareReturn {
 
       console.log('[Host] 开始分享，分享码:', peerId.value);
 
-      // 通过 postMessage 通知 Figma 插件（PandaScrcpy 在插件 iframe 中运行）
-      notifyShareReady(peerId.value, targetFps.value);
+      // 通过本地 HTTP 中继服务器通知 Figma 插件（外部浏览器无法用 postMessage 跨窗口通信）
+      notifyRelayServer(peerId.value, targetFps.value);
 
     } catch (err) {
       console.error('[Host] 启动分享失败:', err);
@@ -539,37 +546,46 @@ export function useScreenShare(): UseScreenShareReturn {
 
     console.log('[Host] 停止分享');
 
-    // 通知 Figma 插件：分享已停止
-    notifyShareStopped();
+    // 通知中继服务器：分享已停止
+    notifyRelayServer(null, 0);
   }
 
   /**
-   * 通过 parent.postMessage 通知 Figma 插件分享已就绪
-   * 无需额外服务 — PandaScrcpy 在 Figma 插件 iframe 内运行，直接跨帧通信
+   * 通过本地 HTTP 中继服务器通知 Figma 插件
+   * 
+   * 架构：外部浏览器 PandaScrcpy Host → POST → relay-server.js (localhost:18793) → GET ← Figma 插件轮询
+   * 因为 Figma 插件和外部浏览器是独立窗口，postMessage 无法跨窗口通信
+   * 
+   * @param sharePeerId - peerId，传 null 表示停止分享
+   * @param fps - 帧率
    */
-  function notifyShareReady(sharePeerId: string | null, fps: number) {
-    try {
-      const id = sharePeerId || peerId.value;
-      if (!id || !window.parent || window.parent === window) return;
-      const shareUrl = `https://okshijian.github.io/PandaScrcpy/?peerId=${id}&role=viewer&fps=${fps}`;
-      window.parent.postMessage({
-        type: 'SCREEN_SHARE_READY',
-        shareUrl,
-        peerId: id,
-        fps,
-      }, '*');
-      console.log('[Host] 已通知 Figma 插件分享就绪:', shareUrl.substring(0, 60));
-    } catch {}
-  }
+  function notifyRelayServer(sharePeerId: string | null, fps: number) {
+    const viewerBaseUrl = window.location.origin + window.location.pathname;
+    
+    const body = sharePeerId
+      ? {
+          shareUrl: `${viewerBaseUrl}?peerId=${sharePeerId}&role=viewer&fps=${fps}`,
+          peerId: sharePeerId,
+          fps,
+        }
+      : {
+          action: 'stop',
+          shareUrl: null,
+        };
 
-  /**
-   * 通过 parent.postMessage 通知 Figma 插件分享已停止
-   */
-  function notifyShareStopped() {
-    try {
-      if (!window.parent || window.parent === window) return;
-      window.parent.postMessage({ type: 'SCREEN_SHARE_STOPPED' }, '*');
-    } catch {}
+    fetch(RELAY_SERVER, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+      .then(res => res.json())
+      .then(data => {
+        console.log('[Host] 中继服务器响应:', data);
+      })
+      .catch(err => {
+        // 中继服务器未启动是正常情况（用户可能还没启动 relay-server.js）
+        console.warn('[Host] 无法连接中继服务器 (relay-server.js 可能未启动):', err.message);
+      });
   }
 
   onUnmounted(() => {

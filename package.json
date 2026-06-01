@@ -12,7 +12,8 @@
     "postinstall": "fetch-scrcpy-server 3.3.3",
     "build:figma": "vite build --config vite.figma.config.ts && node scripts/copy-figma-plugin.js",
     "capture-api": "node capture-api.js",
-    "dev:full": "node scripts/status-server.js & vite",
+    "relay": "node relay-server.js",
+    "dev:full": "node relay-server.js & node scripts/status-server.js & vite",
     "status-server": "node scripts/status-server.js"
   },
   "dependencies": {
