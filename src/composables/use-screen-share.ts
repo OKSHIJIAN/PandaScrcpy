@@ -585,7 +585,7 @@ export function useScreenShare(): UseScreenShareReturn {
     }
 
     const viewerBaseUrl = window.location.origin + window.location.pathname;
-    const shareUrl = `${viewerBaseUrl}?peerId=${sharePeerId}&role=viewer&fps=${fps}&embed=1`;
+    const shareUrl = `${viewerBaseUrl}?remote=${sharePeerId}&embed=1`;
 
     console.log('[Host] 通过 WebRTC 连接 Figma 插件:', figmaPeerId);
 
