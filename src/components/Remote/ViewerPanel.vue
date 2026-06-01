@@ -47,6 +47,7 @@
             autoplay
             playsinline
             muted
+            preload="auto"
             class="remote-video"
           />
         </div>
@@ -63,6 +64,14 @@
     <v-snackbar v-model="showDisconnected" color="warning" timeout="3000">
       连接已断开
     </v-snackbar>
+
+    <!-- 悬浮球调试面板 -->
+    <DebugFloatingBall
+      :is-connected="isConnected"
+      :remote-stream="remoteStream"
+      @disconnect="handleDisconnect"
+      @send-settings="sendSettings"
+    />
   </div>
 </template>
 
@@ -71,6 +80,7 @@ import { ref, watch, onMounted, onUnmounted } from 'vue';
 import { useScreenViewer } from '@/composables/use-screen-viewer';
 import { useTouchController } from '@/composables/use-touch-controller';
 import { useVideoBridge } from '@/composables/use-video-bridge';
+import DebugFloatingBall from './DebugFloatingBall.vue';
 
 const props = defineProps<{
   initialPeerId?: string;
@@ -91,6 +101,7 @@ const {
   connect,
   disconnect,
   sendCommand,
+  sendSettings,
 } = useScreenViewer();
 
 const touchController = useTouchController(sendCommand, videoElement);
@@ -134,12 +145,86 @@ onUnmounted(() => {
   stopBridge();
 });
 
+/**
+ * 截图功能 - 供 UI-REL 插件调用
+ */
+function captureCurrentFrame() {
+  const video = videoElement.value;
+  if (!video || !video.srcObject) {
+    console.warn('[ViewerPanel] 截图失败：视频未就绪');
+    try {
+      window.parent.postMessage({
+        type: 'SCREEN_CAPTURE',
+        payload: { error: 'NOT_READY', imageBase64: '', timestamp: Date.now(), width: 0, height: 0 }
+      }, '*');
+    } catch(e) {}
+    return;
+  }
+
+  try {
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth || video.clientWidth;
+    canvas.height = video.videoHeight || video.clientHeight;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) throw new Error('无法创建 canvas context');
+    
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const dataURL = canvas.toDataURL('image/png', 0.95);
+    
+    window.parent.postMessage({
+      type: 'SCREEN_CAPTURE',
+      payload: {
+        imageBase64: dataURL,
+        timestamp: Date.now(),
+        width: canvas.width,
+        height: canvas.height,
+      }
+    }, '*');
+    
+    console.log('[ViewerPanel] 截图已发送, 尺寸:', canvas.width, 'x', canvas.height);
+  } catch (err) {
+    console.error('[ViewerPanel] 截图失败:', err);
+    try {
+      window.parent.postMessage({
+        type: 'SCREEN_CAPTURE',
+        payload: { error: String(err), imageBase64: '', timestamp: Date.now(), width: 0, height: 0 }
+      }, '*');
+    } catch(e) {}
+  }
+}
+
+// 暴露全局方法供 UI-REL 调用
+(window as any).__pandaCapture = captureCurrentFrame;
+
+// 监听来自 UI-REL 的截图请求
+window.addEventListener('message', (event) => {
+  if (event.data?.type === 'REQUEST_SCREEN_CAPTURE') {
+    captureCurrentFrame();
+  }
+});
+
 function bindStreamToVideo() {
   if (videoElement.value && remoteStream.value) {
     videoElement.value.srcObject = remoteStream.value;
     videoElement.value.play().catch((err) => {
       console.warn('[ViewerPanel] 视频自动播放失败:', err);
     });
+    
+    // 低延迟优化：设置视频解码偏好
+    const videoTracks = remoteStream.value.getVideoTracks();
+    if (videoTracks.length > 0) {
+      console.log('[ViewerPanel] 视频轨道配置:', videoTracks[0].getSettings());
+      
+      // 尝试获取 PeerJS 的 RTCPeerConnection 并设置接收端低延迟
+      setTimeout(() => {
+        try {
+          // 查找页面中的所有 peerConnection
+          const pcs = (window as any).peerConnections || [];
+          // 或者通过 PeerJS 内部访问
+          console.log('[ViewerPanel] 等待 WebRTC 连接稳定...');
+        } catch {}
+      }, 500);
+    }
   }
 }
 

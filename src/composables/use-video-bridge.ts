@@ -68,17 +68,11 @@ export function useVideoBridge(videoElement: Ref<HTMLVideoElement | null>, optio
       const now = performance.now()
       if (now - lastPostTime >= interval) {
         try {
-          // ✅ 用 toBlob 替代 toDataURL（更省内存，异步非阻塞）
-          captureCanvas.toBlob((blob) => {
-            if (!blob || !isRunning) return
-            // ✅ 用 ObjectURL 替代 base64 字符串（内存更小）
-            const url = URL.createObjectURL(blob)
-            window.parent.postMessage({ type: 'video-frame', frame: url }, '*')
-            // ✅ 5秒后释放 ObjectURL（给接收方足够的加载时间）
-            setTimeout(() => {
-              if (url.startsWith('blob:')) URL.revokeObjectURL(url)
-            }, 5000)
-          }, 'image/jpeg', quality)
+          // ✅ 使用 base64 编码（可跨 iframe 使用，blob URL 不行）
+          const dataUrl = captureCanvas.toDataURL('image/jpeg', quality)
+          if (isRunning) {
+            window.parent.postMessage({ type: 'video-frame', frame: dataUrl }, '*')
+          }
           lastPostTime = now
         } catch (e) {
           console.warn('[VideoBridge] 截帧失败:', e)

@@ -18,8 +18,15 @@ export interface KeyCommand {
   key: 'back' | 'home' | 'recents';
 }
 
+// 画质设置命令
+export interface SettingsCommand {
+  type: 'settings';
+  fps?: number;        // 目标帧率 5/10/15/30
+  quality?: number;    // 编码质量 30-100
+}
+
 // 远程控制命令联合类型
-export type RemoteControlCommand = TouchCommand | KeyCommand;
+export type RemoteControlCommand = TouchCommand | KeyCommand | SettingsCommand;
 
 /**
  * 序列化命令为 JSON 字符串
@@ -32,13 +39,23 @@ export function serializeCommand(cmd: RemoteControlCommand): string {
  * 反序列化 JSON 字符串为命令对象
  * 返回 null 如果解析失败或格式无效
  */
+function parseSettingsCommand(parsed: any): SettingsCommand | null {
+  if (parsed.type !== 'settings') return null;
+  const cmd: SettingsCommand = { type: 'settings' };
+  if (typeof parsed.fps === 'number' && [5, 10, 15, 30].includes(parsed.fps)) {
+    cmd.fps = parsed.fps;
+  }
+  if (typeof parsed.quality === 'number' && parsed.quality >= 30 && parsed.quality <= 100) {
+    cmd.quality = parsed.quality;
+  }
+  // 至少要有一个有效参数
+  return cmd.fps !== undefined || cmd.quality !== undefined ? cmd : null;
+}
+
 export function deserializeCommand(data: string): RemoteControlCommand | null {
   try {
     const parsed = JSON.parse(data);
-    
-    if (!parsed || typeof parsed !== 'object') {
-      return null;
-    }
+    if (!parsed || typeof parsed !== 'object') return null;
 
     if (parsed.type === 'touch') {
       if (
@@ -57,8 +74,9 @@ export function deserializeCommand(data: string): RemoteControlCommand | null {
       ) {
         return parsed as KeyCommand;
       }
+    } else if (parsed.type === 'settings') {
+      return parseSettingsCommand(parsed);
     }
-
     return null;
   } catch {
     return null;
@@ -77,4 +95,11 @@ export function isTouchCommand(cmd: RemoteControlCommand): cmd is TouchCommand {
  */
 export function isKeyCommand(cmd: RemoteControlCommand): cmd is KeyCommand {
   return cmd.type === 'key';
+}
+
+/**
+ * 类型守卫：判断是否为 SettingsCommand
+ */
+export function isSettingsCommand(cmd: RemoteControlCommand): cmd is SettingsCommand {
+  return cmd.type === 'settings';
 }
