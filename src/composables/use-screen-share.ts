@@ -5,13 +5,22 @@
  * 2. 帧变化检测 - 只在画面变化时推送
  * 3. 内存优化 - 及时释放未使用的帧数据
  * 
- * 通信方式（v2）：通过本地 HTTP 中继服务器 relay-server.js (端口 18793)
- *   Host → POST /share-url → 中继服务器 → GET /share-url → Figma 插件
- *   外部浏览器和 Figma 插件是独立窗口，postMessage 无法跨越窗口通信
+ * 通信方式（v3）：通过 WebRTC DataChannel（PeerJS）
+ *   Figma 插件创建 Peer(id=figma-xxx) 监听 DataChannel
+ *   → 插件打开外部浏览器时通过 URL 参数传递 figmaPeer
+ *   → PandaScrcpy Host 启动分享后创建临时 Peer → DataChannel 回连发送 shareUrl
+ *   外部浏览器和 Figma 插件通过 PeerJS 信令服务器建立 P2P 连接
  */
 
-/** 本地中继服务器地址（与 relay-server.js 端口一致） */
-const RELAY_SERVER = 'http://127.0.0.1:18793/share-url';
+/** 从 URL 读取 Figma 插件 Peer ID（用于 WebRTC DataChannel 回连） */
+function getFigmaPeerId(): string | null {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get('figmaPeer');
+  } catch {
+    return null;
+  }
+}
 
 import { ref, shallowRef, computed, onUnmounted } from 'vue';
 import type { Ref, ShallowRef } from 'vue';
@@ -494,8 +503,8 @@ export function useScreenShare(): UseScreenShareReturn {
 
       console.log('[Host] 开始分享，分享码:', peerId.value);
 
-      // 通过本地 HTTP 中继服务器通知 Figma 插件（外部浏览器无法用 postMessage 跨窗口通信）
-      notifyRelayServer(peerId.value, targetFps.value);
+      // 通过 WebRTC DataChannel 通知 Figma 插件（外部浏览器无法用 postMessage 跨窗口通信）
+      notifyFigmaPlugin(peerId.value, targetFps.value);
 
     } catch (err) {
       console.error('[Host] 启动分享失败:', err);
@@ -546,46 +555,83 @@ export function useScreenShare(): UseScreenShareReturn {
 
     console.log('[Host] 停止分享');
 
-    // 通知中继服务器：分享已停止
-    notifyRelayServer(null, 0);
+    // 通知 Figma 插件分享已停止（通过 DataChannel 发送停止信号）
+    notifyFigmaPlugin(null, 0);
   }
 
   /**
-   * 通过本地 HTTP 中继服务器通知 Figma 插件
+   * 通过 WebRTC DataChannel（PeerJS）通知 Figma 插件分享已就绪
    * 
-   * 架构：外部浏览器 PandaScrcpy Host → POST → relay-server.js (localhost:18793) → GET ← Figma 插件轮询
-   * 因为 Figma 插件和外部浏览器是独立窗口，postMessage 无法跨窗口通信
+   * 架构：
+   *   Figma 插件创建 Peer(id=figma-xxx) 并监听 DataChannel
+   *   → PandaScrcpy 在外部浏览器打开时 URL 携带 ?figmaPeer=figma-xxx
+   *   → 本函数读取 figmaPeer，创建临时 Peer → DataChannel 回连 → 发送 shareUrl
+   *   → 发送完成后关闭临时 Peer
    * 
-   * @param sharePeerId - peerId，传 null 表示停止分享
+   * @param sharePeerId - PeerJS peerId（分享码），传 null 表示停止
    * @param fps - 帧率
    */
-  function notifyRelayServer(sharePeerId: string | null, fps: number) {
+  function notifyFigmaPlugin(sharePeerId: string | null, fps: number) {
+    const figmaPeerId = getFigmaPeerId();
+    if (!figmaPeerId) {
+      console.log('[Host] 未检测到 figmaPeer 参数（非 Figma 插件启动），跳过通知');
+      return;
+    }
+
+    if (!sharePeerId) {
+      // 停止分享时不需要通知 Figma（viewer 会自动断开）
+      console.log('[Host] 分享停止，跳过 Figma 通知');
+      return;
+    }
+
     const viewerBaseUrl = window.location.origin + window.location.pathname;
-    
-    const body = sharePeerId
-      ? {
-          shareUrl: `${viewerBaseUrl}?peerId=${sharePeerId}&role=viewer&fps=${fps}`,
+    const shareUrl = `${viewerBaseUrl}?peerId=${sharePeerId}&role=viewer&fps=${fps}`;
+
+    console.log('[Host] 通过 WebRTC 连接 Figma 插件:', figmaPeerId);
+
+    // 创建临时 Peer 用于回连 Figma 插件
+    const tempPeer = new Peer(PEER_CONFIG);
+
+    tempPeer.on('open', (tempId) => {
+      console.log('[Host] 临时 Peer 已上线:', tempId, '→ 连接', figmaPeerId);
+
+      const conn = tempPeer.connect(figmaPeerId, {
+        reliable: true,
+      });
+
+      conn.on('open', () => {
+        console.log('[Host] DataChannel 已打开，发送分享链接');
+        conn.send({
+          type: 'SHARE_URL',
+          shareUrl,
           peerId: sharePeerId,
           fps,
-        }
-      : {
-          action: 'stop',
-          shareUrl: null,
-        };
-
-    fetch(RELAY_SERVER, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-    })
-      .then(res => res.json())
-      .then(data => {
-        console.log('[Host] 中继服务器响应:', data);
-      })
-      .catch(err => {
-        // 中继服务器未启动是正常情况（用户可能还没启动 relay-server.js）
-        console.warn('[Host] 无法连接中继服务器 (relay-server.js 可能未启动):', err.message);
+        });
+        // 发送完毕后延迟关闭，确保数据送达
+        setTimeout(() => {
+          conn.close();
+          tempPeer.destroy();
+          console.log('[Host] 临时 Peer 已销毁');
+        }, 2000);
       });
+
+      conn.on('error', (err) => {
+        console.error('[Host] DataChannel 连接 Figma 插件失败:', err);
+        tempPeer.destroy();
+      });
+
+      // 超时保护
+      setTimeout(() => {
+        if (!tempPeer.destroyed) {
+          console.warn('[Host] 连接 Figma 插件超时，销毁临时 Peer');
+          tempPeer.destroy();
+        }
+      }, 10000);
+    });
+
+    tempPeer.on('error', (err) => {
+      console.error('[Host] 临时 Peer 错误:', err);
+    });
   }
 
   onUnmounted(() => {
