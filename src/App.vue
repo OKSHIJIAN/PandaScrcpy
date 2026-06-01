@@ -1,7 +1,7 @@
 <template>
   <v-app class="app-root">
     <v-app-bar
-      v-if="!isDeviceMode && !isFigmaEmbed && !isStandalone"
+      v-if="!isDeviceMode && !isFigmaEmbed && !isStandalone && !isEmbed"
       flat
       height="48"
       color="surface"
@@ -29,7 +29,7 @@
       </template>
     </DeviceView>
 
-    <RemoteView v-else :initial-peer-id="initialPeerId" :is-figma-embed="isFigmaEmbed" />
+    <RemoteView v-else :initial-peer-id="initialPeerId" :is-figma-embed="isFigmaEmbed" :is-embed="isEmbed" />
   </v-app>
 </template>
 
@@ -45,6 +45,7 @@ const isDeviceMode = ref(true);
 const initialPeerId = ref('');
 const isFigmaEmbed = ref(false);
 const isStandalone = ref(false);
+const isEmbed = ref(false);
 
 const isDark = computed(() => theme.global.name.value === 'dark');
 
@@ -59,10 +60,16 @@ onMounted(() => {
   isFigmaEmbed.value = urlParams.has('figma') || window.parent !== window;
   // 检测是否独立模式（纯净界面，无顶部栏）
   isStandalone.value = urlParams.has('standalone') || urlParams.has('clean');
+  // 检测是否 embed 模式（嵌入 Figma 插件，隐藏所有 UI chrome）
+  isEmbed.value = urlParams.has('embed');
   if (remotePeerId) {
     initialPeerId.value = remotePeerId;
     isDeviceMode.value = false;
     // 通过分享链接进入时也隐藏顶部栏
+    isStandalone.value = true;
+  }
+  // embed 模式整合 standalone 行为
+  if (isEmbed.value) {
     isStandalone.value = true;
   }
 });

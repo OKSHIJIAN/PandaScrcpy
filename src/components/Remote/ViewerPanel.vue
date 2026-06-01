@@ -1,6 +1,6 @@
 <template>
   <div class="viewer-panel">
-    <div v-if="!isConnected" class="connection-form">
+    <div v-if="!isConnected && !isEmbed" class="connection-form">
       <div class="connect-card">
         <div class="cc-header">
           <v-icon size="20" color="secondary" class="mr-2">mdi-cast-connected</v-icon>
@@ -33,7 +33,7 @@
       </div>
     </div>
 
-    <div v-else class="video-area">
+    <div v-else-if="isConnected || isEmbed" class="video-area">
       <div class="video-wrapper" ref="videoWrapper">
         <div
           class="touch-overlay"
@@ -54,19 +54,20 @@
       </div>
     </div>
 
-    <v-snackbar v-model="showError" color="error" timeout="5000">
+    <v-snackbar v-if="!isEmbed" v-model="showError" color="error" timeout="5000">
       {{ error }}
       <template v-slot:actions>
         <v-btn variant="text" size="small" @click="showError = false">关闭</v-btn>
       </template>
     </v-snackbar>
 
-    <v-snackbar v-model="showDisconnected" color="warning" timeout="3000">
+    <v-snackbar v-if="!isEmbed" v-model="showDisconnected" color="warning" timeout="3000">
       连接已断开
     </v-snackbar>
 
-    <!-- 悬浮球调试面板 -->
+    <!-- 悬浮球调试面板（embed 模式隐藏） -->
     <DebugFloatingBall
+      v-if="!isEmbed"
       :is-connected="isConnected"
       :remote-stream="remoteStream"
       @disconnect="handleDisconnect"
@@ -85,6 +86,7 @@ import DebugFloatingBall from './DebugFloatingBall.vue';
 const props = defineProps<{
   initialPeerId?: string;
   isFigmaEmbed?: boolean;
+  isEmbed?: boolean;
 }>();
 
 const hostPeerId = ref('');

@@ -1,6 +1,6 @@
 <template>
   <v-container fluid class="remote-view">
-    <ViewerPanel :initial-peer-id="initialPeerId" :is-figma-embed="isFigmaEmbed" />
+    <ViewerPanel :initial-peer-id="initialPeerId" :is-figma-embed="isFigmaEmbed" :is-embed="isEmbed" />
   </v-container>
 </template>
 
@@ -10,6 +10,7 @@ import ViewerPanel from '@/components/Remote/ViewerPanel.vue';
 defineProps<{
   initialPeerId?: string;
   isFigmaEmbed?: boolean;
+  isEmbed?: boolean;
 }>();
 </script>
 
