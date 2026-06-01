@@ -23,6 +23,14 @@
       </button>
     </div>
 
+    <!-- 空闲状态：显示开始分享按钮 -->
+    <div v-else class="sharing-row">
+      <button class="share-chip chip-start" @click="autoStart">
+        <v-icon size="14">mdi-share-variant</v-icon>
+        <span class="share-label">开始分享</span>
+      </button>
+    </div>
+
     <v-dialog v-model="showShareDialog" max-width="400">
       <div class="share-dialog">
         <div class="sd-header">
@@ -201,6 +209,17 @@ async function copyPeerId() {
   border-color: rgba(234, 179, 8, 0.3);
   background: rgba(234, 179, 8, 0.06);
   color: #ca8a04;
+}
+
+.share-chip.chip-start {
+  border-color: rgba(59, 130, 246, 0.3);
+  background: rgba(59, 130, 246, 0.06);
+  color: #3b82f6;
+  cursor: pointer;
+}
+
+.share-chip.chip-start:hover {
+  background: rgba(59, 130, 246, 0.1);
 }
 
 .share-chip:hover {
