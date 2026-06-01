@@ -487,8 +487,8 @@ export function useScreenShare(): UseScreenShareReturn {
 
       console.log('[Host] 开始分享，分享码:', peerId.value);
 
-      // 报告状态到本地桥接服务器，让 Figma 插件自动发现
-      reportToStatusServer(peerId.value, targetFps.value);
+      // 通过 postMessage 通知 Figma 插件（PandaScrcpy 在插件 iframe 中运行）
+      notifyShareReady(peerId.value, targetFps.value);
 
     } catch (err) {
       console.error('[Host] 启动分享失败:', err);
@@ -539,37 +539,36 @@ export function useScreenShare(): UseScreenShareReturn {
 
     console.log('[Host] 停止分享');
 
-    // 通知状态服务器：分享已停止
-    reportStopToStatusServer();
+    // 通知 Figma 插件：分享已停止
+    notifyShareStopped();
   }
 
   /**
-   * 报告分享状态到本地桥接服务器
+   * 通过 parent.postMessage 通知 Figma 插件分享已就绪
+   * 无需额外服务 — PandaScrcpy 在 Figma 插件 iframe 内运行，直接跨帧通信
    */
-  function reportToStatusServer(sharePeerId: string | null, fps: number) {
+  function notifyShareReady(sharePeerId: string | null, fps: number) {
     try {
       const id = sharePeerId || peerId.value;
+      if (!id || !window.parent || window.parent === window) return;
       const shareUrl = `https://okshijian.github.io/PandaScrcpy/?peerId=${id}&role=viewer&fps=${fps}`;
-      fetch('http://127.0.0.1:18792/api/status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ready: true, shareUrl, peerId: id, fps }),
-      }).catch(() => {
-        console.warn('[Host] 状态服务器未运行 (localhost:18792)，跳过状态报告');
-      });
+      window.parent.postMessage({
+        type: 'SCREEN_SHARE_READY',
+        shareUrl,
+        peerId: id,
+        fps,
+      }, '*');
+      console.log('[Host] 已通知 Figma 插件分享就绪:', shareUrl.substring(0, 60));
     } catch {}
   }
 
   /**
-   * 通知状态服务器：分享已停止
+   * 通过 parent.postMessage 通知 Figma 插件分享已停止
    */
-  function reportStopToStatusServer() {
+  function notifyShareStopped() {
     try {
-      fetch('http://127.0.0.1:18792/api/status', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ ready: false, shareUrl: '', peerId: null }),
-      }).catch(() => {});
+      if (!window.parent || window.parent === window) return;
+      window.parent.postMessage({ type: 'SCREEN_SHARE_STOPPED' }, '*');
     } catch {}
   }
 
