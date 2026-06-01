@@ -582,8 +582,20 @@ export function useScreenShare(): UseScreenShareReturn {
     }
 
     if (!sharePeerId) {
-      // 停止分享时不需要通知 Figma（viewer 会自动断开）
-      console.log('[Host] 分享停止，跳过 Figma 通知');
+      // 停止分享时：发送 SHARE_STOP 信号通知 Figma 插件重置画面
+      console.log('[Host] 发送停止信号到 Figma 插件:', figmaPeerId);
+      const stopPeer = new Peer(PEER_CONFIG);
+      stopPeer.on('open', () => {
+        const conn = stopPeer.connect(figmaPeerId, { reliable: true });
+        conn.on('open', () => {
+          conn.send({ type: 'SHARE_STOP' });
+          setTimeout(() => { conn.close(); stopPeer.destroy(); }, 1000);
+        });
+        conn.on('error', () => stopPeer.destroy());
+      });
+      stopPeer.on('error', () => stopPeer.destroy());
+      // 超时保护
+      setTimeout(() => { if (!stopPeer.destroyed) stopPeer.destroy(); }, 8000);
       return;
     }
 
