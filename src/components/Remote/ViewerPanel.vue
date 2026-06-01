@@ -118,11 +118,38 @@ const { startBridge, stopBridge } = useVideoBridge(videoElement, {
 onMounted(() => {
   if (props.initialPeerId) {
     hostPeerId.value = props.initialPeerId;
+    // 延迟后自动连接，带重试：PeerJS 信令服务器传播 peerId 需要时间
     setTimeout(() => {
-      handleConnect();
-    }, 500);
+      autoConnectWithRetry();
+    }, 800);
   }
 });
+
+/**
+ * 自动连接（带重试）：处理 Host 刚上线、PeerJS 信令尚未传播的竞态问题
+ * 每次失败后递增等待时间，最多重试 5 次（总等待 ~30 秒）
+ */
+async function autoConnectWithRetry() {
+  const maxRetries = 5;
+  let delay = 2000; // 首次重试等 2 秒
+
+  for (let i = 0; i < maxRetries; i++) {
+    if (isConnected.value) return; // 已连接，停止重试
+
+    try {
+      await connect(hostPeerId.value.trim());
+      console.log('[ViewerPanel] 自动连接成功');
+      return;
+    } catch (err) {
+      console.warn(`[ViewerPanel] 自动连接失败 (${i + 1}/${maxRetries}):`, err);
+      if (i < maxRetries - 1) {
+        await new Promise(r => setTimeout(r, delay));
+        delay += 1500; // 每次递增 1.5 秒：2s, 3.5s, 5s, 6.5s
+      }
+    }
+  }
+  console.error('[ViewerPanel] 自动连接最终失败');
+}
 
 watch(error, (newError) => {
   if (newError) showError.value = true;

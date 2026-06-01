@@ -503,8 +503,11 @@ export function useScreenShare(): UseScreenShareReturn {
 
       console.log('[Host] 开始分享，分享码:', peerId.value);
 
-      // 通过 WebRTC DataChannel 通知 Figma 插件（外部浏览器无法用 postMessage 跨窗口通信）
-      notifyFigmaPlugin(peerId.value, targetFps.value);
+      // 延迟 2 秒再通知 Figma 插件：等待 PeerJS 信令服务器完成 peerId 注册
+      // 避免 viewer 连接时 peerId 尚未在信令服务器上生效导致的 "Could not connect to peer" 错误
+      setTimeout(() => {
+        notifyFigmaPlugin(peerId.value, targetFps.value);
+      }, 2000);
 
     } catch (err) {
       console.error('[Host] 启动分享失败:', err);
