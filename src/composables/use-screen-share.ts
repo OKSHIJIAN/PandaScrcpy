@@ -487,6 +487,9 @@ export function useScreenShare(): UseScreenShareReturn {
 
       console.log('[Host] 开始分享，分享码:', peerId.value);
 
+      // 报告状态到本地桥接服务器，让 Figma 插件自动发现
+      reportToStatusServer(peerId.value, targetFps.value);
+
     } catch (err) {
       console.error('[Host] 启动分享失败:', err);
       error.value = err instanceof Error ? err.message : '未知错误';
@@ -535,6 +538,39 @@ export function useScreenShare(): UseScreenShareReturn {
     viewers.value = [];
 
     console.log('[Host] 停止分享');
+
+    // 通知状态服务器：分享已停止
+    reportStopToStatusServer();
+  }
+
+  /**
+   * 报告分享状态到本地桥接服务器
+   */
+  function reportToStatusServer(sharePeerId: string | null, fps: number) {
+    try {
+      const id = sharePeerId || peerId.value;
+      const shareUrl = `https://okshijian.github.io/PandaScrcpy/?peerId=${id}&role=viewer&fps=${fps}`;
+      fetch('http://127.0.0.1:18792/api/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ready: true, shareUrl, peerId: id, fps }),
+      }).catch(() => {
+        console.warn('[Host] 状态服务器未运行 (localhost:18792)，跳过状态报告');
+      });
+    } catch {}
+  }
+
+  /**
+   * 通知状态服务器：分享已停止
+   */
+  function reportStopToStatusServer() {
+    try {
+      fetch('http://127.0.0.1:18792/api/status', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ready: false, shareUrl: '', peerId: null }),
+      }).catch(() => {});
+    } catch {}
   }
 
   onUnmounted(() => {
