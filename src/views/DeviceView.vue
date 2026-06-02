@@ -313,7 +313,7 @@ function toggleFullscreen() {
         title="AI 助手、虚拟屏幕、设备群控、脚本录制回放、性能检测等"
       >
         <v-icon size="14" class="mr-1">mdi-rocket-launch-outline</v-icon>
-        加强版 · 免费
+        原版PandaScrcpy
         <v-icon size="12" class="ml-1">mdi-arrow-top-right</v-icon>
       </a>
     </div>

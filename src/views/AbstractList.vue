@@ -19,19 +19,7 @@
         </div>
       </div>
 
-      <a
-        class="cta-banner"
-        href="https://www.pandatest.net/device"
-        target="_blank"
-        rel="noopener noreferrer"
-      >
-        <span class="cta-badge">免费</span>
-        <span class="cta-text">
-          <strong>功能加强版</strong>
-          <small>AI 助手 · 虚拟屏幕 · 设备群控 · 脚本录制回放 · 性能检测等功能，免费使用</small>
-        </span>
-        <v-icon size="16" class="cta-arrow">mdi-arrow-right</v-icon>
-      </a>
+
     </div>
   </div>
 </template>
