@@ -97,7 +97,7 @@ const showError = ref(false);
 const showDisconnected = ref(false);
 const videoElement = ref<HTMLVideoElement | null>(null);
 const videoWrapper = ref<HTMLDivElement | null>(null);
-const remoteControlEnabled = ref(false);
+const remoteControlEnabled = ref(true);
 
 const {
   isConnected,
@@ -405,7 +405,7 @@ function onOverlayPointerCancel(e: PointerEvent) {
 }
 
 .touch-overlay.control-mode {
-  cursor: none;
+  cursor: default;
 }
 
 .remote-video {

@@ -327,8 +327,6 @@ provide('setVideoContainerFocus', (focused: boolean) => {
 });
 
 // ===== 截图功能：供 UI-REL 父窗口获取画面 =====
-const captureToastVisible = ref(false);
-const captureToastMsg = ref('');
 
 /** 截取当前 canvas 一帧并通过 postMessage 发送给父窗口 */
 function captureAndSend() {
@@ -344,7 +342,6 @@ function captureAndSend() {
                 payload: { error: 'NOT_READY', imageBase64: '', timestamp: Date.now(), width: 0, height: 0 }
             }, '*');
         } catch(e) { /* ignore */ }
-        showToast('⚠ 投屏未就绪');
         return;
     }
 
@@ -372,13 +369,6 @@ function captureAndSend() {
     }
 }
 
-/** 显示短暂提示 */
-function showToast(msg: string) {
-    captureToastMsg.value = msg;
-    captureToastVisible.value = true;
-    setTimeout(() => { captureToastVisible.value = false; }, 1800);
-}
-
 /** 暴露全局方法，父窗口也可通过 iframe.contentWindow.__pandaCapture() 调用 */
 (window as any).__pandaCapture = captureAndSend;
 
@@ -392,25 +382,6 @@ window.addEventListener('message', (event) => {
 
 <template>
     <div ref="videoWrapper" class="video-wrapper">
-        <!-- 截取按钮 -->
-        <button
-            class="capture-btn"
-            :class="{ visible: pictureReady && videoFadedIn }"
-            :disabled="!state.running"
-            title="截取画面 (发送到 UI-REL)"
-            @click.stop="captureAndSend()"
-        >
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M23 19a2 2 0 01-2 2H3a2 2 0 01-2-2V8a2 2 0 012-2h4l2-3h6l2 3h4a2 2 0 012 2z"/>
-                <circle cx="12" cy="13" r="4"/>
-            </svg>
-        </button>
-        <!-- Toast 提示 -->
-        <transition name="toast-fade">
-            <div v-if="captureToastVisible" class="capture-toast">
-                {{ captureToastMsg }}
-            </div>
-        </transition>
         <!-- 视频容器 -->
         <div
             ref="videoContainer"
@@ -493,91 +464,5 @@ window.addEventListener('message', (event) => {
     opacity: 1;
 }
 
-/* ===== 截取按钮 ===== */
-.capture-btn {
-    position: absolute;
-    bottom: 10px;
-    right: 10px;
-    z-index: 100;
-    width: 36px;
-    height: 36px;
-    border-radius: 50%;
-    border: 1.5px solid rgba(255, 255, 255, 0.15);
-    background: rgba(20, 20, 28, 0.75);
-    backdrop-filter: blur(8px);
-    color: rgba(255, 255, 255, 0.55);
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 0;
-    opacity: 0;
-    transform: scale(0.85) translateY(6px);
-    transition: all 0.22s cubic-bezier(0.34, 1.56, 0.64, 1);
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
-}
 
-.capture-btn.visible {
-    opacity: 1;
-    transform: scale(1) translateY(0);
-}
-
-.capture-btn:hover:not(:disabled) {
-    background: rgba(0, 255, 200, 0.15);
-    color: #00ffc8;
-    border-color: rgba(0, 255, 200, 0.4);
-    box-shadow: 0 2px 14px rgba(0, 255, 200, 0.18), 0 0 24px rgba(0, 255, 200, 0.08);
-    transform: scale(1.08) translateY(0);
-}
-
-.capture-btn:active:not(:disabled) {
-    transform: scale(0.94) translateY(0);
-}
-
-.capture-btn:disabled {
-    color: rgba(255, 255, 255, 0.2);
-    cursor: not-allowed;
-}
-
-.capture-btn svg {
-    width: 17px;
-    height: 17px;
-    stroke-linecap: round;
-    stroke-linejoin: round;
-}
-
-/* ===== Toast 提示 ===== */
-.capture-toast {
-    position: absolute;
-    bottom: 54px;
-    right: 8px;
-    z-index: 101;
-    font-size: 11.5px;
-    font-weight: 600;
-    color: #00ffc8;
-    background: rgba(20, 20, 28, 0.85);
-    backdrop-filter: blur(10px);
-    padding: 5px 12px;
-    border-radius: 8px;
-    border: 1px solid rgba(0, 255, 200, 0.25);
-    pointer-events: none;
-    white-space: nowrap;
-    letter-spacing: 0.02em;
-    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
-}
-
-.toast-fade-enter-active {
-    animation: toast-in 0.2s ease forwards;
-}
-.toast-fade-leave-active {
-    animation: toast-out 0.3s ease forwards;
-}
-@keyframes toast-in {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-@keyframes toast-out {
-    from { opacity: 1; transform: translateY(0); }
-    to { opacity: 0; transform: translateY(-6px); }
-}
 </style>
