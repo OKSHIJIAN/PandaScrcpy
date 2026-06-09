@@ -37,10 +37,11 @@
       <div class="video-wrapper" ref="videoWrapper">
         <div
           class="touch-overlay"
-          @pointerdown="touchController.onPointerDown"
-          @pointermove="touchController.onPointerMove"
-          @pointerup="touchController.onPointerUp"
-          @pointercancel="touchController.onPointerCancel"
+          :class="{ 'capture-mode': !remoteControlEnabled, 'control-mode': remoteControlEnabled }"
+          @pointerdown="onOverlayPointerDown"
+          @pointermove="onOverlayPointerMove"
+          @pointerup="onOverlayPointerUp"
+          @pointercancel="onOverlayPointerCancel"
         >
           <video
             ref="videoElement"
@@ -70,8 +71,10 @@
       v-if="!isEmbed"
       :is-connected="isConnected"
       :remote-stream="remoteStream"
+      :remote-control-enabled="remoteControlEnabled"
       @disconnect="handleDisconnect"
       @send-settings="sendSettings"
+      @toggle-remote-control="toggleRemoteControl"
     />
   </div>
 </template>
@@ -94,6 +97,7 @@ const showError = ref(false);
 const showDisconnected = ref(false);
 const videoElement = ref<HTMLVideoElement | null>(null);
 const videoWrapper = ref<HTMLDivElement | null>(null);
+const remoteControlEnabled = ref(false);
 
 const {
   isConnected,
@@ -272,6 +276,46 @@ async function handleConnect() {
 function handleDisconnect() {
   disconnect();
   hostPeerId.value = '';
+  remoteControlEnabled.value = false;
+}
+
+/**
+ * 切换远程控制模式
+ */
+function toggleRemoteControl() {
+  remoteControlEnabled.value = !remoteControlEnabled.value;
+  console.log('[ViewerPanel] 远程控制:', remoteControlEnabled.value ? '已开启' : '已关闭');
+}
+
+/**
+ * 分发 overlay pointer 事件：远程控制模式 → touchController，截图模式 → captureCurrentFrame
+ */
+function onOverlayPointerDown(e: PointerEvent) {
+  if (remoteControlEnabled.value) {
+    touchController.onPointerDown(e);
+  } else {
+    captureCurrentFrame();
+  }
+}
+
+function onOverlayPointerMove(e: PointerEvent) {
+  if (remoteControlEnabled.value) {
+    touchController.onPointerMove(e);
+  }
+}
+
+function onOverlayPointerUp(e: PointerEvent) {
+  if (remoteControlEnabled.value) {
+    touchController.onPointerUp(e);
+  } else {
+    captureCurrentFrame();
+  }
+}
+
+function onOverlayPointerCancel(e: PointerEvent) {
+  if (remoteControlEnabled.value) {
+    touchController.onPointerCancel(e);
+  }
 }
 </script>
 
@@ -354,6 +398,14 @@ function handleDisconnect() {
   justify-content: center;
   align-items: center;
   touch-action: none;
+}
+
+.touch-overlay.capture-mode {
+  cursor: crosshair;
+}
+
+.touch-overlay.control-mode {
+  cursor: none;
 }
 
 .remote-video {

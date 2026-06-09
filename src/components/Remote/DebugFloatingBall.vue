@@ -108,6 +108,27 @@
           </div>
         </div>
 
+        <!-- 远程控制开关 -->
+        <div class="panel-section">
+          <div class="section-title">控制模式</div>
+          <button
+            class="remote-toggle"
+            :class="{ active: remoteControlEnabled }"
+            @click="handleToggleRemoteControl"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M9 9l-5 5"/>
+            </svg>
+            <span>{{ remoteControlEnabled ? '远程控制中' : '开启远程控制' }}</span>
+          </button>
+          <div class="toggle-hint" v-if="remoteControlEnabled">
+            拖动画面将控制设备，截图按钮仍可用
+          </div>
+          <div class="toggle-hint" v-else>
+            拖动画面将捕获截图
+          </div>
+        </div>
+
         <!-- 操作按钮 -->
         <div class="panel-section actions">
           <button class="action-btn danger" @click="handleDisconnect">
@@ -144,11 +165,13 @@ import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue';
 const props = defineProps<{
   isConnected: boolean;
   remoteStream?: MediaStream | null;
+  remoteControlEnabled: boolean;
 }>();
 
 const emit = defineEmits<{
   (e: 'disconnect'): void;
   (e: 'send-settings', settings: { fps?: number; quality?: number }): void;
+  (e: 'toggle-remote-control'): void;
 }>();
 
 // 位置状态
@@ -373,6 +396,10 @@ function handleFullscreen() {
       video.requestFullscreen?.();
     }
   }
+}
+
+function handleToggleRemoteControl() {
+  emit('toggle-remote-control');
 }
 
 // 监听连接状态
@@ -742,6 +769,48 @@ onUnmounted(() => {
   color: #6366f1;
   min-width: 32px;
   text-align: right;
+}
+
+/* 远程控制开关 */
+.remote-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 8px;
+  color: #a1a1aa;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.remote-toggle:hover {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.3);
+  color: #fff;
+}
+
+.remote-toggle.active {
+  background: rgba(34, 197, 94, 0.15);
+  border-color: rgba(34, 197, 94, 0.4);
+  color: #22c55e;
+  box-shadow: 0 0 16px rgba(34, 197, 94, 0.2);
+}
+
+.remote-toggle.active svg {
+  color: #22c55e;
+}
+
+.toggle-hint {
+  font-size: 10px;
+  color: #55556a;
+  margin-top: 8px;
+  text-align: center;
 }
 
 /* 操作按钮 */
