@@ -8,8 +8,10 @@ import DeviceLogcat from "../components/Device/DeviceLogcat.vue";
 import DeviceInfo from "../components/Device/DeviceInfo.vue";
 import AbstractList from "./AbstractList.vue";
 import VideoContainer from "../components/Device/VideoContainer.vue";
+import LinuxMirror from "../components/Device/LinuxMirror.vue";
 import NavigationBar from "../components/Device/NavigationBar.vue";
 import state from "../components/Scrcpy/scrcpy-state";
+import client from "../components/Scrcpy/adb-client";
 import AppManager from "../components/Device/AppManager.vue";
 import ShareButton from '../components/Remote/ShareButton.vue'
 
@@ -341,7 +343,8 @@ function toggleFullscreen() {
                   height: `${containerDimensions.height}px`
                 }"
               >
-                <VideoContainer />
+                <LinuxMirror v-if="client.isLinux" />
+                <VideoContainer v-else />
               </div>
               <div class="navigation-wrapper">
                 <NavigationBar />
