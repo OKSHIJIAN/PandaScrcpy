@@ -10,6 +10,8 @@ export interface LinuxMirrorCallbacks {
     onFrame?: (width: number, height: number) => void;
     /** 每秒上报一次实时帧率与码率 */
     onStats?: (fps: number, kbps: number) => void;
+    /** ffmpeg 推送进度（0-100） */
+    onProgress?: (pct: number) => void;
 }
 
 export interface LinuxMirrorOptions {
@@ -163,6 +165,7 @@ export class LinuxMirror {
                             data.length / 1048576
                         ).toFixed(1)}MB`,
                     );
+                    this.callbacks.onProgress?.(pct);
                     console.log(
                         `[linux-mirror] pushFile(sync) 进度 ${pct}% ${sent}/${data.length}`,
                     );
@@ -240,6 +243,7 @@ export class LinuxMirror {
                         data.length / 1048576
                     ).toFixed(1)}MB  ${mbps.toFixed(2)}MB/s  剩余约 ${Math.ceil(remain)}s`,
                 );
+                this.callbacks.onProgress?.(pct);
                 console.log(
                     `[linux-mirror] pushFile 进度 ${pct}% ${sent}/${total} ${mbps.toFixed(
                         2,
