@@ -136,9 +136,12 @@ watch(isSharing, (sharing) => {
 
 // 自动启动分享方法，供 DeviceView 调用
 async function autoStart() {
-  const canvas = scrcpyState.getCanvas();
+  // 优先 Android scrcpy 画面；Linux 车机镜像页则使用其 canvas
+  const canvas =
+    scrcpyState.getCanvas() ||
+    (document.querySelector('.mirror-canvas') as HTMLCanvasElement | null);
   if (!canvas) {
-    console.warn('Canvas 未就绪，无法启动分享');
+    console.warn('Canvas 未就绪，无法启动分享（请先开始投屏）');
     return;
   }
   try {
