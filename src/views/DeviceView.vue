@@ -203,12 +203,25 @@ watch(width, (newWidth, oldWidth) => {
   }
 });
 
-const tabs = [
+const allTabs = [
   { title: "基础信息", icon: "mdi-information-outline", component: DeviceInfo },
   { title: "应用管理", icon: "mdi-package-variant-closed", component: AppManager },
   { title: "终端", icon: "mdi-console", component: DeviceShell },
   { title: "Logcat", icon: "mdi-text-box-search-outline", component: DeviceLogcat },
 ];
+// Linux 车机:应用管理(pm/am)与 Logcat(logcat)均为 Android 专有,隐藏
+const tabs = computed(() =>
+  client.isLinux
+    ? allTabs.filter((t) => t.title === "基础信息" || t.title === "终端")
+    : allTabs
+);
+// Tab 集合变化时重置选中项，避免索引越界
+watch(
+  () => client.isLinux,
+  () => {
+    tab.value = 0;
+  }
+);
 
 const pairedDevicesRef = ref(null);
 const shareButtonRef = ref(null);

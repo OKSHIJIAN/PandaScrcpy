@@ -8,6 +8,8 @@ import { Adb } from '@yume-chan/adb';
 
 const device = computed(() => client.device || undefined);
 const isLoading = ref(true);
+/** Linux 车机：无电池、无 Android 设置页，相关 UI 不显示 */
+const isLinuxDevice = computed(() => client.isLinux);
 
 const deviceInfo = ref({
     deviceModel: '',
@@ -79,8 +81,107 @@ async function executeShellCommand(device: Adb, command: string): Promise<string
     return result.trim();
 }
 
+/** Linux 车机专用：exec:/getprop 不可用，用一条 shell 批量收集系统信息 */
+async function runLinuxProbe(adbDevice: Adb) {
+    const probeScript = [
+        "echo \"KERNEL=$(uname -r 2>/dev/null)\"",
+        "echo \"ARCH=$(uname -m 2>/dev/null)\"",
+        "echo \"UPTIME=$(awk '{print int($1)}' /proc/uptime 2>/dev/null)\"",
+        "echo \"MEM_TOTAL=$(awk '/MemTotal/ {print $2}' /proc/meminfo 2>/dev/null)\"",
+        "echo \"MEM_AVAIL=$(awk '/MemAvailable/ {print $2}' /proc/meminfo 2>/dev/null)\"",
+        "echo \"MODE=$(head -1 /sys/class/graphics/fb0/modes 2>/dev/null)\"",
+        "echo \"CPU=$(grep -m1 -i 'model name' /proc/cpuinfo 2>/dev/null | cut -d: -f2)\"",
+        "echo \"CORES=$(grep -c processor /proc/cpuinfo 2>/dev/null)\"",
+        "echo \"DISK=$(df -h / 2>/dev/null | tail -1 | awk '{print $2}')\"",
+        "echo \"DISK_USED=$(df -h / 2>/dev/null | tail -1 | awk '{print $3}')\"",
+        "echo \"IP=$(ip -4 addr 2>/dev/null | awk '/inet / {print $2}' | grep -v '^127' | head -1 | cut -d/ -f1)\"",
+        "echo \"HOST=$(hostname 2>/dev/null)\"",
+        "echo \"OSRAW=$(grep PRETTY_NAME /etc/os-release 2>/dev/null)\"",
+        "echo \"BATT=$(cat /sys/class/power_supply/battery/capacity 2>/dev/null)\"",
+    ].join('; ');
+
+    let out = '';
+    try {
+        out = await adbDevice.createSocketAndWait(`shell:${probeScript}\n`);
+    } catch {
+        return; // shell 也不可用时，保留兜底信息直接展示
+    }
+
+    const kv: Record<string, string> = {};
+    for (const line of out.split(/\r?\n/)) {
+        const idx = line.indexOf('=');
+        if (idx > 0) kv[line.slice(0, idx).trim()] = line.slice(idx + 1).trim();
+    }
+    const osMatch = (kv.OSRAW || '').match(/"(.*)"/);
+    const osName = osMatch ? osMatch[1] : '';
+
+    // 真实显示分辨率：优先 fb0/modes（如 "U:1024x600p-60"）。
+    // virtual_size 是含多缓冲的虚拟尺寸（如 1024x1800 = 600×3），不能当分辨率用。
+    let resolution = '';
+    const modeMatch = (kv.MODE || '').match(/(\d+)x(\d+)/);
+    if (modeMatch) {
+        resolution = `${modeMatch[1]}x${modeMatch[2]}`;
+    }
+
+    const toMB = (kb?: string) =>
+        kb && /^\d+$/.test(kb) ? `${Math.round(parseInt(kb, 10) / 1024)} MB` : '';
+    const memTotal = toMB(kv.MEM_TOTAL);
+    const memAvail = toMB(kv.MEM_AVAIL);
+    const memUsed =
+        memTotal && memAvail
+            ? `${Math.max(0, parseInt(memTotal, 10) - parseInt(memAvail, 10))} MB`
+            : '';
+    const up = parseInt(kv.UPTIME || '0', 10);
+    const uptimeStr = up
+        ? `${Math.floor(up / 86400)}天 ${Math.floor((up % 86400) / 3600)}时 ${Math.floor(
+              (up % 3600) / 60,
+          )}分`
+        : '未知';
+    const cores = /^\d+$/.test(kv.CORES || '') ? kv.CORES : '';
+    const cpuName = (kv.CPU || '').trim() || kv.ARCH || '';
+
+    deviceInfo.value = {
+        ...deviceInfo.value,
+        deviceModel: osName || kv.HOST || 'Linux 车机',
+        manufacturer: kv.HOST || 'Linux',
+        androidVersion: 'Linux',
+        sdkVersionCode: kv.KERNEL || '',
+        resolution,
+        screenDensity: '',
+        ipAddress: kv.IP || '—',
+        totalMemory: memTotal,
+        usedMemory: memUsed,
+        totalStorage: kv.DISK || '',
+        usedStorage: kv.DISK_USED || '',
+        serialNumber: client.serial || '',
+        cpuInfo: cores ? `${cpuName} ×${cores}核` : cpuName,
+        cpuMin: '',
+        cpuMax: '',
+        cpuCur: '',
+        cpuAbi: kv.ARCH || '',
+        abis: kv.ARCH || '',
+        hardware: kv.ARCH || '',
+        board: kv.ARCH || '',
+        kernelVersion: kv.KERNEL || '',
+        // BL 锁 / A/B 槽 / 闪存类型均为 Android 概念，Linux 车机不适用
+        oemLockedState: '-',
+        bootloader: '-',
+        abPartition: '-',
+        storageType: '-',
+        uptime: uptimeStr,
+        batteryPercentage: kv.BATT && /^\d+$/.test(kv.BATT) ? parseInt(kv.BATT, 10) : 0,
+        rootState: 'none',
+    };
+}
+
 async function getDeviceInfo() {
     if (!device.value) return;
+
+    // Linux 车机走专用分支（getProp/exec: 必然失败）
+    if (client.isLinux) {
+        await runLinuxProbe(device.value);
+        return;
+    }
 
     const adbDevice = device.value;
 
@@ -220,6 +321,8 @@ const refreshDeviceInfo = async () => {
     isLoading.value = true;
     try {
         await getDeviceInfo();
+    } catch {
+        /* 单项信息失败也展示已收集的部分，避免骨架屏卡死 */
     } finally {
         isLoading.value = false;
     }
@@ -227,10 +330,13 @@ const refreshDeviceInfo = async () => {
 
 onMounted(async () => {
     if (client.isConnected) {
-        await getDeviceInfo();
+        try {
+            await getDeviceInfo();
+        } catch {
+            /* ignore */
+        }
         isLoading.value = false;
     } else {
-        console.error('Device not connected');
         isLoading.value = false;
     }
 });
@@ -259,17 +365,18 @@ onMounted(async () => {
                 />
             </div>
             <div class="info-side">
-                <BatteryInfo 
-                    :batteryPercentage="deviceInfo.batteryPercentage" 
-                    :voltage="deviceInfo.voltage" 
-                    :temperature="deviceInfo.temperature" 
+                <BatteryInfo
+                    v-if="!isLinuxDevice"
+                    :batteryPercentage="deviceInfo.batteryPercentage"
+                    :voltage="deviceInfo.voltage"
+                    :temperature="deviceInfo.temperature"
                     :batteryHealth="deviceInfo.batteryHealth"
                     :batteryChargeCounter="deviceInfo.batteryChargeCounter"
                     :batteryCurrent="deviceInfo.batteryCurrent"
                 />
                 <StorageInfo :deviceInfo="deviceInfo" />
             </div>
-            <div class="device-controls">
+            <div v-if="!isLinuxDevice" class="device-controls">
                 <v-btn-group variant="outlined" class="control-group">
                     <v-btn size="small" prepend-icon="mdi-cog" @click="openSettings" title="打开系统设置">设置</v-btn>
                     <v-btn size="small" prepend-icon="mdi-bug" @click="openDeveloperOptions" title="打开开发者选项">开发者</v-btn>
